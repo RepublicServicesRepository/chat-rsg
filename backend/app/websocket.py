@@ -12,8 +12,7 @@ from app.agents.handlers.token_count import get_token_count_callback
 from app.agents.handlers.used_chunk import get_used_chunk_callback
 from app.agents.langchain import BedrockLLM
 from app.agents.tools.knowledge import AnswerWithKnowledgeTool
-from app.agents.tools.rdb_sql.tool import get_sql_tools
-from app.agents.tools.weather import today_weather_tool
+from app.agents.utils import get_tool_by_name
 from app.auth import verify_token
 from app.bedrock import compose_args
 from app.repositories.conversation import RecordNotFoundError, store_conversation
@@ -23,7 +22,7 @@ from app.stream import OnStopInput, get_stream_handler_type
 from app.usecases.bot import modify_bot_last_used_time
 from app.usecases.chat import insert_knowledge, prepare_conversation, trace_to_root
 from app.utils import get_anthropic_client, get_current_time, is_anthropic_model
-from app.vector_search import filter_used_results, search_related_docs
+from app.vector_search import filter_used_results, get_source_link, search_related_docs
 from boto3.dynamodb.conditions import Attr, Key
 from ulid import ULID
 
@@ -64,9 +63,7 @@ def process_chat_input(
         logger.info("Bot has agent tools. Using agent for response.")
         llm = BedrockLLM.from_model(model=chat_input.message.model)
 
-        # TODO: remove SQL tool (?)
-        tools = get_sql_tools(llm)  # RDB Query Tool
-        tools.append(today_weather_tool)  # Weather Tool
+        tools = [get_tool_by_name(t.name) for t in bot.agent.tools]
 
         if bot and bot.has_knowledge():
             logger.info("Bot has knowledge. Adding answer with knowledge tool.")
@@ -112,9 +109,10 @@ def process_chat_input(
                 },
             )
             price = token_cb.total_cost
-            if bot.display_retrieved_chunks:
+            if bot.display_retrieved_chunks and chunk_cb.used_chunks:
                 used_chunks = chunk_cb.used_chunks
             thinking_log = format_log_to_str(response.get("intermediate_steps", []))
+            logger.info(f"Thinking log: {thinking_log}")
 
         # Append entire completion as the last message
         assistant_msg_id = str(ULID())
@@ -207,10 +205,18 @@ def process_chat_input(
     def on_stop(arg: OnStopInput, **kwargs) -> None:
         used_chunks = None
         if bot and bot.display_retrieved_chunks:
-            used_chunks = [
-                ChunkModel(content=r.content, source=r.source, rank=r.rank)
-                for r in filter_used_results(arg.full_token, search_results)
-            ]
+            if len(search_results) > 0:
+                used_chunks = []
+                for r in filter_used_results(arg.full_token, search_results):
+                    content_type, source_link = get_source_link(r.source)
+                    used_chunks.append(
+                        ChunkModel(
+                            content=r.content,
+                            content_type=content_type,
+                            source=source_link,
+                            rank=r.rank,
+                        )
+                    )
 
         # Append entire completion as the last message
         assistant_msg_id = str(ULID())
@@ -284,7 +290,6 @@ def handler(event, context):
 
     now = datetime.now()
     expire = int(now.timestamp()) + 60 * 2  # 2 minute from now
-    # body = event["body"]
     body = json.loads(event["body"])
     step = body.get("step")
 
