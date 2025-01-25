@@ -47,9 +47,18 @@ export class BedrockChatStack extends cdk.Stack {
     });
     const cronSchedule = createCronSchedule(props.rdsSchedules);
 
+    /**  remove for RSG purpose
     const vpc = new ec2.Vpc(this, "VPC", {});
     vpc.publicSubnets.forEach((subnet) => {
       (subnet.node.defaultChild as ec2.CfnSubnet).mapPublicIpOnLaunch = false;
+    });
+    */
+
+    // add for RSG purpose
+    const vpc = ec2.Vpc.fromLookup(this, "VPC", {
+      vpcName: process.env.RSG_VPC_NAME,
+      ownerAccountId: process.env.CDK_DEFAULT_ACCOUNT,
+      region: process.env.CDK_DEFAULT_REGION,
     });
 
     const vectorStore = new VectorStore(this, "VectorStore", {

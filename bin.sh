@@ -43,8 +43,9 @@ stackId=$(aws cloudformation create-stack
 ALLOW_SELF_REGISTER="true"
 IPV4_RANGES=""
 IPV6_RANGES=""
-ALLOWED_SIGN_UP_EMAIL_DOMAINS=""
+ALLOWED_SIGN_UP_EMAIL_DOMAINS="republicservices.com,repsrv.com"
 REGION="us-east-1"
+RSG_VPC_NAME=""
 
 # Parse command-line arguments for customization
 while [[ "$#" -gt 0 ]]; do
@@ -54,6 +55,7 @@ while [[ "$#" -gt 0 ]]; do
         --ipv6-ranges) IPV6_RANGES="$2"; shift ;;
         --region) REGION="$2"; shift ;;
         --allowed-signup-email-domains) ALLOWED_SIGN_UP_EMAIL_DOMAINS="$2"; shift ;;
+        --rsg-vpc-name) RSG_VPC_NAME="$2"; shift ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
