@@ -7,7 +7,7 @@ def build_rag_prompt(
     search_results: list[SearchResult],
     display_citation: bool = True,
 ) -> str:
-    instruction_prompt = conversation.message_map["instruction"].content[0].body
+    instruction_prompt: str = conversation.message_map["instruction"].content[0].body  # type: ignore[assignment]
 
     context_prompt = ""
     for result in search_results:

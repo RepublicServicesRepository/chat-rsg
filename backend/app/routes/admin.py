@@ -118,6 +118,7 @@ def get_public_bot(request: Request, bot_id: str, admin_check=Depends(check_admi
             source_urls=bot.knowledge.source_urls,
             sitemap_urls=bot.knowledge.sitemap_urls,
             filenames=bot.knowledge.filenames,
+            s3_urls=bot.knowledge.s3_urls,
         ),
         sync_status=bot.sync_status,
         sync_status_reason=bot.sync_status_reason,

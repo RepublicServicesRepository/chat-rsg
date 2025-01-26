@@ -34,6 +34,10 @@ const AdminBotManagementPage: React.FC = () => {
     return bot ? bot.knowledge.sourceUrls.length > 0 : false;
   }, [bot]);
 
+  const hasS3Urls = useMemo(() => {
+    return bot ? bot.knowledge.s3Urls.length > 0 : false;
+  }, [bot]);
+
   const hasFiles = useMemo(() => {
     return bot ? bot.knowledge.filenames.length > 0 : false;
   }, [bot]);
@@ -147,7 +151,7 @@ const AdminBotManagementPage: React.FC = () => {
                   <div className="text-base font-bold">
                     {t('bot.label.knowledge')}
                   </div>
-                  {!hasSourceUrls && !hasFiles && (
+                  {!hasSourceUrls && !hasS3Urls && !hasFiles && (
                     <div className="italic text-dark-gray">
                       {t('admin.botManagement.label.noKnowledge')}
                     </div>
@@ -196,6 +200,26 @@ const AdminBotManagementPage: React.FC = () => {
                                 <div>{filename}</div>
                               </div>
                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {hasS3Urls && (
+                    <div>
+                      <div className="text-sm text-dark-gray">
+                        {t('bot.label.s3url')}
+                      </div>
+                      <div className="flex w-full flex-col gap-1">
+                        {bot?.knowledge.s3Urls.map((s3url, idx) => (
+                          <div className="flex w-full gap-2" key={idx}>
+                            <InputText
+                              className="w-full"
+                              type="text"
+                              disabled
+                              value={s3url}
+                            />
                           </div>
                         ))}
                       </div>

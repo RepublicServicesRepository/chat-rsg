@@ -14,15 +14,12 @@ import {
 import useConversation from './useConversation';
 import { create } from 'zustand';
 import usePostMessageStreaming from './usePostMessageStreaming';
-import useSnackbar from './useSnackbar';
-import { useNavigate } from 'react-router-dom';
 import { ulid } from 'ulid';
 import { convertMessageMapToArray } from '../utils/MessageUtils';
-import { useTranslation } from 'react-i18next';
 import useModel from './useModel';
 import useFeedbackApi from './useFeedbackApi';
 import { useMachine } from '@xstate/react';
-import { agentThinkingState } from '../features/agent/xstates/agentThinkProgress';
+import { agentThinkingState } from '../features/agent/xstates/agentThink';
 
 type ChatStateType = {
   [id: string]: MessageMap;
@@ -32,6 +29,12 @@ type BotInputType = {
   botId: string;
   hasKnowledge: boolean;
   hasAgent: boolean;
+};
+
+export type AttachmentType = {
+  fileName: string;
+  fileType: string;
+  extractedContent: string;
 };
 
 export type ThinkingAction =
@@ -81,6 +84,9 @@ const useChatState = create<{
   setIsGeneratedTitle: (b: boolean) => void;
   getPostedModel: () => Model;
   shouldUpdateMessages: (currentConversation: Conversation) => boolean;
+  shouldCotinue: boolean;
+  setShouldContinue: (b: boolean) => void;
+  getShouldContinue: () => boolean;
 }>((set, get) => {
   return {
     conversationId: '',
@@ -224,11 +230,19 @@ const useChatState = create<{
         get().currentMessageId !== currentConversation.lastMessageId
       );
     },
+    getShouldContinue: () => {
+      return get().shouldCotinue;
+    },
+    setShouldContinue: (b) => {
+      set(() => ({
+        shouldCotinue: b,
+      }));
+    },
+    shouldCotinue: false,
   };
 });
 
 const useChat = () => {
-  const { t } = useTranslation();
   const [agentThinking, send] = useMachine(agentThinkingState);
 
   const {
@@ -252,9 +266,9 @@ const useChat = () => {
     setRelatedDocuments,
     moveRelatedDocuments,
     shouldUpdateMessages,
+    getShouldContinue,
+    setShouldContinue,
   } = useChatState();
-  const { open: openSnackbar } = useSnackbar();
-  const navigate = useNavigate();
 
   const { post: postStreaming } = usePostMessageStreaming();
   const { modelId, setModelId } = useModel();
@@ -265,7 +279,7 @@ const useChat = () => {
     data,
     mutate,
     isLoading: loadingConversation,
-    error,
+    error: conversationError,
   } = conversationApi.getConversation(conversationId);
   const { syncConversations } = useConversation();
 
@@ -279,17 +293,6 @@ const useChat = () => {
     setMessages('', {});
   }, [setConversationId, setMessages]);
 
-  // Error Handling
-  useEffect(() => {
-    if (error?.response?.status === 404) {
-      openSnackbar(t('error.notFoundConversation'));
-      navigate('');
-      newChat();
-    } else if (error) {
-      openSnackbar(error?.message ?? '');
-    }
-  }, [error, navigate, newChat, openSnackbar, t]);
-
   // when updated messages
   useEffect(() => {
     if (data && shouldUpdateMessages(data)) {
@@ -299,6 +302,9 @@ const useChat = () => {
       if ((relatedDocuments[NEW_MESSAGE_ID.ASSISTANT]?.length ?? 0) > 0) {
         moveRelatedDocuments(NEW_MESSAGE_ID.ASSISTANT, data.lastMessageId);
       }
+    }
+    if (data && data.shouldContinue !== getShouldContinue()) {
+      setShouldContinue(data.shouldContinue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, data]);
@@ -334,6 +340,7 @@ const useChat = () => {
         model: messageContent.model,
         feedback: messageContent.feedback,
         usedChunks: messageContent.usedChunks,
+        thinkingLog: messageContent.thinkingLog,
       }
     );
   };
@@ -341,9 +348,10 @@ const useChat = () => {
   const postChat = (params: {
     content: string;
     base64EncodedImages?: string[];
+    attachments?: AttachmentType[];
     bot?: BotInputType;
   }) => {
-    const { content, bot, base64EncodedImages } = params;
+    const { content, bot, base64EncodedImages, attachments } = params;
     const isNewChat = conversationId ? false : true;
     const newConversationId = ulid();
 
@@ -372,8 +380,21 @@ const useChat = () => {
         mediaType: result!.groups!.mediaType,
       };
     });
+
+    const attachContents: MessageContent['content'] = (attachments ?? []).map(
+      (attachment) => {
+        return {
+          body: attachment.extractedContent,
+          contentType: 'attachment',
+          mediaType: attachment.fileType,
+          fileName: attachment.fileName,
+        };
+      }
+    );
+
     const messageContent: MessageContent = {
       content: [
+        ...attachContents,
         ...imageContents,
         {
           body: content,
@@ -384,6 +405,7 @@ const useChat = () => {
       role: 'user',
       feedback: null,
       usedChunks: null,
+      thinkingLog: null,
     };
     const input: PostMessageRequest = {
       conversationId: isNewChat ? newConversationId : conversationId,
@@ -417,8 +439,9 @@ const useChat = () => {
     // post message
     const postPromise: Promise<string> = new Promise((resolve, reject) => {
       if (USE_STREAMING) {
-        if (bot?.hasAgent) send({ type: 'wakeup' });
-
+        if (bot?.hasAgent) {
+          send({ type: 'wakeup' });
+        }
         postStreaming({
           input,
           hasKnowledge: bot?.hasKnowledge,
@@ -426,7 +449,7 @@ const useChat = () => {
             editMessage(conversationId, NEW_MESSAGE_ID.ASSISTANT, c);
           },
           thinkingDispatch: (event) => {
-            send({ type: event });
+            send(event);
           },
         })
           .then((message) => {
@@ -487,6 +510,57 @@ const useChat = () => {
   };
 
   /**
+   * Continue to generate
+   */
+  const continueGenerate = (params?: {
+    messageId?: string;
+    bot?: BotInputType;
+  }) => {
+    setPostingMessage(true);
+
+    const messageContent: MessageContent = {
+      content: [],
+      model: getPostedModel(),
+      role: 'user',
+      feedback: null,
+      usedChunks: null,
+      thinkingLog: null,
+    };
+    const input: PostMessageRequest = {
+      conversationId: conversationId,
+      message: {
+        ...messageContent,
+        parentMessageId: messages[messages.length - 1].id,
+      },
+      botId: params?.bot?.botId,
+      continueGenerate: true,
+    };
+
+    const currentContentBody = messages[messages.length - 1].content[0].body;
+    const currentMessage = messages[messages.length - 1];
+
+    // WARNING: Non-streaming is not supported from the UI side as it is planned to be DEPRICATED.
+    postStreaming({
+      input,
+      dispatch: (c: string) => {
+        editMessage(conversationId, currentMessage.id, currentContentBody + c);
+      },
+      thinkingDispatch: (event) => {
+        send(event);
+      },
+    })
+      .then(() => {
+        mutate();
+      })
+      .catch((e) => {
+        console.error(e);
+      })
+      .finally(() => {
+        setPostingMessage(false);
+      });
+  };
+
+  /**
    * 再生成
    * @param props content: 内容を上書きしたい場合に設定  messageId: 再生成対象のmessageId  botId: ボットの場合は設定する
    */
@@ -510,7 +584,10 @@ const useChat = () => {
 
     const parentMessage = produce(messages[index], (draft) => {
       if (props?.content) {
-        draft.content[0].body = props.content;
+        const textIndex = draft.content.findIndex(
+          (content) => content.contentType === 'text'
+        );
+        draft.content[textIndex].body = props.content;
       }
     });
 
@@ -551,6 +628,7 @@ const useChat = () => {
           model: messages[index].model,
           feedback: messages[index].feedback,
           usedChunks: messages[index].usedChunks,
+          thinkingLog: messages[index].thinkingLog,
         }
       );
     } else {
@@ -559,15 +637,16 @@ const useChat = () => {
 
     setCurrentMessageId(NEW_MESSAGE_ID.ASSISTANT);
 
-    if (props?.bot?.hasAgent) send({ type: 'wakeup' });
-
+    if (props?.bot?.hasAgent) {
+      send({ type: 'wakeup' });
+    }
     postStreaming({
       input,
       dispatch: (c: string) => {
         editMessage(conversationId, NEW_MESSAGE_ID.ASSISTANT, c);
       },
       thinkingDispatch: (event) => {
-        send({ type: event });
+        send(event);
       },
     })
       .then(() => {
@@ -611,6 +690,7 @@ const useChat = () => {
     setConversationId,
     conversationId,
     loadingConversation,
+    conversationError,
     postingMessage: postingMessage || loadingConversation,
     isGeneratedTitle,
     setIsGeneratedTitle,
@@ -620,6 +700,8 @@ const useChat = () => {
     postChat,
     regenerate,
     getPostedModel,
+    getShouldContinue,
+    continueGenerate,
     // エラーのリトライ
     retryPostChat: (params: { content?: string; bot?: BotInputType }) => {
       const length_ = messages.length;

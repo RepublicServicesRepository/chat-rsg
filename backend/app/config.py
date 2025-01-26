@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing_extensions import TypedDict
 
 
 class GenerationParams(TypedDict):
@@ -30,7 +30,7 @@ DEFAULT_GENERATION_CONFIG: GenerationParams = {
 # Ref: https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-mistral.html#model-parameters-mistral-request-response
 DEFAULT_MISTRAL_GENERATION_CONFIG: GenerationParams = {
     "max_tokens": 4096,
-    "top_k": 50,
+    "top_k": 250,
     "top_p": 0.9,
     "temperature": 0.5,
     "stop_sequences": ["[INST]", "[/INST]"],
@@ -66,6 +66,7 @@ BEDROCK_PRICING = {
         },
         "claude-v3-haiku": {"input": 0.00025, "output": 0.00125},
         "claude-v3-sonnet": {"input": 0.00300, "output": 0.01500},
+        "claude-v3.5-sonnet": {"input": 0.00300, "output": 0.01500},
         "mistral-7b-instruct": {"input": 0.00015, "output": 0.0002},
         "mixtral-8x7b-instruct": {"input": 0.00045, "output": 0.0007},
         "mistral-large": {"input": 0.008, "output": 0.024},
@@ -106,6 +107,7 @@ BEDROCK_PRICING = {
         },
         "claude-v3-haiku": {"input": 0.00025, "output": 0.00125},
         "claude-v3-sonnet": {"input": 0.00300, "output": 0.01500},
+        "claude-v3.5-sonnet": {"input": 0.00300, "output": 0.01500},
         "claude-v3-opus": {"input": 0.01500, "output": 0.07500},
         "mistral-7b-instruct": {"input": 0.00015, "output": 0.0002},
         "mixtral-8x7b-instruct": {"input": 0.00045, "output": 0.0007},

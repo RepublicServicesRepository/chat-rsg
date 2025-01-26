@@ -26,7 +26,16 @@ const translation = {
       },
       hint: 'エージェントは、ユーザーの質問に答えるため、どのツールを使用するかを自動的に判断します。考える時間が必要なため、応答時間が長くなる傾向にあります。1つ以上のツールをアクティブにすると、エージェントの機能が有効になります。逆に、ツールが選択されていない場合、エージェントの機能は利用されません。エージェントの機能が有効になると、ナレッジの利用も一つのツールとして扱われます。つまり、応答の際にナレッジが利用されない場合があります。',
       progress: {
-        label: 'エージェント思考中...',
+        label: '思考中...',
+      },
+      progressCard: {
+        toolInput: '入力: ',
+        toolOutput: '出力: ',
+        status: {
+          running: '実行中...',
+          success: '成功',
+          error: 'エラー',
+        },
       },
       tools: {
         get_weather: {
@@ -53,7 +62,7 @@ const translation = {
         },
         internet_search: {
           name: 'インターネット検索',
-          desciription: 'インターネットで情報を検索します。',
+          description: 'インターネットで情報を検索します。',
         },
       },
     },
@@ -63,6 +72,7 @@ const translation = {
         recentlyUsedBots: '最近使用した公開ボット',
         knowledge: 'ナレッジ',
         url: 'URL',
+        s3url: 'S3 データソース',
         sitemap: 'サイトマップURL',
         file: 'ファイル',
         loadingBot: 'Loading...',
@@ -89,7 +99,13 @@ const translation = {
           uploaded: 'アップロード完了',
           error: 'エラー',
         },
+        quickStarter: {
+          title: '会話のクイックスタート',
+          exampleTitle: 'タイトル',
+          example: '会話例',
+        },
         citeRetrievedContexts: '取得したコンテキストの引用',
+        unsupported: '非対応、読み取り専用',
       },
       titleSubmenu: {
         edit: 'ボットを編集',
@@ -105,11 +121,17 @@ const translation = {
           overview:
             '外部の情報をボットに提供することで、事前学習していないデータを扱えるようになります。',
           url: 'URLを指定すると、そのURLの情報がナレッジとして利用されます。YouTube の動画の URL を設定すると、その動画の字幕がナレッジとして利用されます。',
+          s3url:
+            'S3 の URI を入力し、S3 をデータソースとして追加します。最大 4 件追加できます。デプロイ先と同じアカウント・同じリージョンに存在するバケットのみ対応しています。',
           sitemap:
             'サイトマップのURLを指定すると、そのサイトマップ内のサイトを自動的にスクレイピングして得られた情報がナレッジとして利用されます。',
           file: 'アップロードしたファイルがナレッジとして利用されます。',
           citeRetrievedContexts:
             'ユーザーの質問に答えるために取得したコンテキストを引用情報として表示するかどうかを設定します。\n有効にすると、ユーザーは元のソースURLやファイルにアクセスできます。',
+        },
+        quickStarter: {
+          overview:
+            '会話を開始する際に、会話例を表示します。会話例を提供することで、ボットの使い方を利用者に示すことができます。',
         },
       },
       alert: {
@@ -163,6 +185,11 @@ const translation = {
         title: 'ボット名',
         description: '説明文',
         instruction: 'インストラクション',
+      },
+      explore: {
+        label: {
+          pageTitle: 'ボットコンソール',
+        },
       },
       apiSettings: {
         pageTitle: '共有されたボットのAPI公開設定',
@@ -400,6 +427,7 @@ const translation = {
       signOut: 'サインアウト',
       close: '閉じる',
       add: '追加',
+      continue: '生成を続ける',
     },
     input: {
       hint: {
@@ -442,25 +470,150 @@ const translation = {
         },
       },
     },
+    generationConfig: {
+      title: '推論パラメーターの設定',
+      description:
+        'LLM の推論パラメーターを設定して、モデルからの応答を制御することができます。',
+      maxTokens: {
+        label: '最大長',
+        hint: '生成されるトークン数の最大長を指定します。',
+      },
+      temperature: {
+        label: '温度（Temperature）',
+        hint: '予測される出力の確率分布の形状に影響を与え、モデルが低確率の出力を選択する可能性に影響を及ぼします。',
+        help: '温度を低くするとランダム性の低い出力を行い、温度を高くするとランダム性の高い出力を行います。',
+      },
+      topK: {
+        label: 'Top-k',
+        hint: 'モデルが次のトークンを予測する際に、最も可能性の高い候補の数を指定します。',
+        help: '値を小さくすると候補の数が少なくなり、結果としてランダム性が低くなります。値を大きくすると候補の数が多くなり、結果としてランダム性が高くなります。',
+      },
+      topP: {
+        label: 'Top-p',
+        hint: 'モデルが次のトークンを予測する際に、最も可能性が高い候補の割合を示します。',
+        help: '値を小さくすると候補の数が少なくなり、結果としてランダム性が低くなります。値を大きくすると候補の数が多くなり、結果としてランダム性が高くなります。',
+      },
+      stopSequences: {
+        label: '停止シーケンス',
+        hint: '指定したキーワードを含む場合、モデルは生成を停止します。複数の単語を設定する場合は、カンマ区切りで入力してください。',
+      },
+    },
+    searchSettings: {
+      title: '検索設定',
+      description:
+        'ベクトルストアから関連ドキュメントを検索する際の設定が行えます。',
+      maxResults: {
+        label: '最大検索数',
+        hint: 'ベクトルストアから検索するレコードの最大数',
+      },
+      searchType: {
+        label: '検索タイプ',
+        hybrid: {
+          label: 'ハイブリッド検索',
+          hint: 'セマンティック検索およびテキスト検索からの関連性スコアを組み合わせて、より高い精度を提供します。',
+        },
+        semantic: {
+          label: 'セマンティック検索',
+          hint: 'ベクトル埋め込みを使用して、関連する結果を提供します。',
+        },
+      },
+    },
+    knowledgeBaseSettings: {
+      title: 'ナレッジの詳細設定',
+      description:
+        'ナレッジを設定するための埋め込みモデルの選択や、ナレッジとして追加したドキュメントの分割方法などを設定します。ボット作成後の変更はできません。',
+      embeddingModel: {
+        label: '埋め込みモデル',
+      },
+      chunkingStrategy: {
+        label: 'チャンキング戦略',
+        default: {
+          label: 'デフォルトチャンキング',
+          hint: 'チャンクに自動的に分割します。各チャンクは最大 300 トークンです。ドキュメントに含まれるトークンが 300 未満である場合、それ以上分割されません。',
+        },
+        fixed_size: {
+          label: '固定サイズのチャンキング',
+          hint: 'テキストをほぼ固定サイズのチャンクに分割します。',
+        },
+        none: {
+          label: 'チャンキングなし',
+          hint: 'ドキュメントを分割しません。',
+        },
+      },
+      chunkingMaxTokens: {
+        label: '最大トークン数',
+        hint: '埋め込み時のチャンクあたりの最大トークン数を設定します。',
+      },
+      chunkingOverlapPercentage: {
+        label: 'チャンク間のオーバーラップの割合',
+        hint: 'チャンク間でオーバーラップするトークンのおおよその割合を設定します。',
+      },
+      opensearchAnalyzer: {
+        label: 'アナライザー（トークナイズ・正規化）',
+        hint: 'ナレッジに登録した文書のトークナイズや正規化を行うアナライザーを指定します。 適切なアナライザーを選択することで、検索精度が向上します。 ナレッジの言語に合わせて、最適なアナライザーを選択してください。',
+        icu: {
+          label: 'ICU analyzer',
+          hint: 'トークナイズは {{tokenizer}} を利用し、正規化は {{normalizer}} を利用します。',
+        },
+        kuromoji: {
+          label: 'Japanese (kuromoji) analyzer',
+          hint: 'トークナイズは {{tokenizer}} を利用し、正規化は {{normalizer}} を利用します。',
+        },
+        none: {
+          label: 'デフォルトアナライザー',
+          hint: 'システム (OpenSearch) で定義されているデフォルトアナライザーを利用します。',
+        },
+        tokenizer: 'トークナイザー:',
+        normalizer: 'ノーマライザー（正規化）:',
+        token_filter: 'トークンフィルター:',
+        not_specified: '指定なし',
+      },
+    },
     error: {
       answerResponse: '回答中にエラーが発生しました。',
       notFoundConversation:
         '指定のチャットは存在しないため、新規チャット画面を表示しました。',
       notFoundPage: 'お探しのページが見つかりませんでした。',
+      unexpectedError: {
+        title: '予期せぬエラーが発生しました',
+        restore: 'TOPページに戻る',
+      },
       predict: {
         general: '推論中にエラーが発生しました。',
         invalidResponse: '想定外のResponseが返ってきました。',
       },
       notSupportedImage: '選択しているモデルは、画像を利用できません。',
+      unsupportedFileFormat: '選択したファイル形式はサポートされていません。',
+      totalFileSizeToSendExceeded:
+        'ファイルサイズの合計が{{maxSize}}を超えています。',
+      attachment: {
+        fileSizeExceeded: 'ファイルサイズは{{maxSize}}以下にしてください。',
+        fileCountExceeded: 'ファイル数は{{maxCount}}以下にしてください。',
+      },
     },
     validation: {
       title: 'バリデーションエラー',
       maxRange: {
         message: '設定できる最大値は{{size}}です',
       },
+      minRange: {
+        message: '設定できる最小値は{{size}}です',
+      },
       chunkOverlapLessThanChunkSize: {
         message:
           'チャンクオーバーラップはチャンクサイズより小さく設定する必要があります',
+      },
+      quickStarter: {
+        message: 'タイトルと入力例は、どちらも入力してください。',
+      },
+    },
+    helper: {
+      shortcuts: {
+        title: 'ショートカットキー',
+        items: {
+          focusInput: 'チャット入力にフォーカスを移す',
+          newChat: '新しいチャットを開く',
+        },
       },
     },
   },

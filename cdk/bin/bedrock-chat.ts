@@ -23,24 +23,35 @@ const PUBLISHED_API_ALLOWED_IP_V4_ADDRESS_RANGES: string[] =
   app.node.tryGetContext("publishedApiAllowedIpV4AddressRanges");
 const PUBLISHED_API_ALLOWED_IP_V6_ADDRESS_RANGES: string[] =
   app.node.tryGetContext("publishedApiAllowedIpV6AddressRanges");
-const ALLOWED_SIGN_UP_EMAIL_DOMAINS: string[] =
-  app.node.tryGetContext('allowedSignUpEmailDomains');
+const ALLOWED_SIGN_UP_EMAIL_DOMAINS: string[] = app.node.tryGetContext(
+  "allowedSignUpEmailDomains"
+);
 const IDENTITY_PROVIDERS: TIdentityProvider[] =
   app.node.tryGetContext("identityProviders");
 const USER_POOL_DOMAIN_PREFIX: string = app.node.tryGetContext(
   "userPoolDomainPrefix"
 );
-const AUTO_JOIN_USER_GROUPS: string[] = app.node.tryGetContext(
-  "autoJoinUserGroups"
-);
+const AUTO_JOIN_USER_GROUPS: string[] =
+  app.node.tryGetContext("autoJoinUserGroups");
 
 const RDS_SCHEDULES: CronScheduleProps = app.node.tryGetContext("rdbSchedules");
 const ENABLE_MISTRAL: boolean = app.node.tryGetContext("enableMistral");
-const SELF_SIGN_UP_ENABLED: boolean = app.node.tryGetContext("selfSignUpEnabled");
+const SELF_SIGN_UP_ENABLED: boolean =
+  app.node.tryGetContext("selfSignUpEnabled");
+const ENABLE_KB: boolean = app.node.tryGetContext(
+  "useBedrockKnowledgeBaseForRag"
+);
 
 // container size of embedding ecs tasks
-const EMBEDDING_CONTAINER_VCPU:number = app.node.tryGetContext("embeddingContainerVcpu")
-const EMBEDDING_CONTAINER_MEMORY:number = app.node.tryGetContext("embeddingContainerMemory")
+const EMBEDDING_CONTAINER_VCPU: number = app.node.tryGetContext(
+  "embeddingContainerVcpu"
+);
+const EMBEDDING_CONTAINER_MEMORY: number = app.node.tryGetContext(
+  "embeddingContainerMemory"
+);
+
+// how many nat gateways
+const NATGATEWAY_COUNT: number = app.node.tryGetContext("natgatewayCount");
 
 // WAF for frontend
 // 2023/9: Currently, the WAF for CloudFront needs to be created in the North America region (us-east-1), so the stacks are separated
@@ -62,19 +73,21 @@ const chat = new BedrockChatStack(app, `BedrockChatStack`, {
   crossRegionReferences: true,
   bedrockRegion: BEDROCK_REGION,
   webAclId: waf.webAclArn.value,
+  enableIpV6: waf.ipV6Enabled,
   identityProviders: IDENTITY_PROVIDERS,
   userPoolDomainPrefix: USER_POOL_DOMAIN_PREFIX,
   publishedApiAllowedIpV4AddressRanges:
     PUBLISHED_API_ALLOWED_IP_V4_ADDRESS_RANGES,
   publishedApiAllowedIpV6AddressRanges:
     PUBLISHED_API_ALLOWED_IP_V6_ADDRESS_RANGES,
-  allowedSignUpEmailDomains:
-    ALLOWED_SIGN_UP_EMAIL_DOMAINS,
+  allowedSignUpEmailDomains: ALLOWED_SIGN_UP_EMAIL_DOMAINS,
   autoJoinUserGroups: AUTO_JOIN_USER_GROUPS,
   rdsSchedules: RDS_SCHEDULES,
   enableMistral: ENABLE_MISTRAL,
+  enableKB: ENABLE_KB,
   embeddingContainerVcpu: EMBEDDING_CONTAINER_VCPU,
   embeddingContainerMemory: EMBEDDING_CONTAINER_MEMORY,
   selfSignUpEnabled: SELF_SIGN_UP_ENABLED,
+  natgatewayCount: NATGATEWAY_COUNT,
 });
 chat.addDependency(waf);

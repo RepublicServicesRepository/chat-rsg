@@ -3,7 +3,7 @@ import sys
 sys.path.append(".")
 import unittest
 
-from app.agents.tools.internet_search import internet_search_tool
+from app.agents.tools.internet_search import InternetSearchInput, internet_search_tool
 
 
 class TestInternetSearchTool(unittest.TestCase):
@@ -11,10 +11,12 @@ class TestInternetSearchTool(unittest.TestCase):
         # query = "Amazon Stock Price Today"
         query = "東京 焼肉"
         time_limit = "d"
+        country = "jp-jp"
         response = internet_search_tool.run(
-            tool_input={"query": query, "time_limit": time_limit}
+            InternetSearchInput(query=query, time_limit=time_limit, country=country)
         )
-        self.assertIsInstance(response, str)
+        self.assertIsInstance(response.body, str)
+        self.assertTrue(response.succeeded)
         print(response)
 
 

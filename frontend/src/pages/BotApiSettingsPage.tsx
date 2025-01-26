@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import InputText from '../components/InputText';
 import Button from '../components/Button';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { PiCaretLeft, PiPlus, PiTrash } from 'react-icons/pi';
 import useBotApiSettings from '../hooks/useBotApiSettings';
 import Alert from '../components/Alert';
@@ -42,6 +42,7 @@ const PERIOD_OPTIONS: {
 
 const BotApiSettingsPage: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { botId } = useParams();
 
   const {
@@ -56,6 +57,17 @@ const BotApiSettingsPage: React.FC = () => {
     mutateBotPublication,
     deleteBotPublication,
   } = useBotApiSettings(botId ?? '');
+
+  useEffect(() => {
+    // Disallow editing of bots created under opposite VITE_APP_ENABLE_KB environment state
+    const KB_ENABLED: boolean = import.meta.env.VITE_APP_ENABLE_KB === 'true';
+    if (
+      myBot &&
+      (KB_ENABLED ? !myBot.bedrockKnowledgeBase : !!myBot.bedrockKnowledgeBase)
+    ) {
+      navigate('/');
+    }
+  }, [myBot, navigate]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingShare, setIsLoadingShare] = useState(false);

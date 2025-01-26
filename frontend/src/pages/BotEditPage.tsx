@@ -12,7 +12,12 @@ import { produce } from 'immer';
 import Alert from '../components/Alert';
 import KnowledgeFileUploader from '../components/KnowledgeFileUploader';
 import GenerationConfig from '../components/GenerationConfig';
-import { BotFile, EmdeddingParams, SearchParams } from '../@types/bot';
+import {
+  BotFile,
+  ConversationQuickStarter,
+  EmdeddingParams,
+  SearchParams,
+} from '../@types/bot';
 
 import { ulid } from 'ulid';
 import {
@@ -24,6 +29,7 @@ import {
   DEFAULT_MISTRAL_GENERATION_CONFIG,
   DEFAULT_SEARCH_CONFIG,
   EDGE_SEARCH_PARAMS,
+  TooltipDirection,
 } from '../constants';
 import { Slider } from '../components/Slider';
 import ExpandableDrawerGroup from '../components/ExpandableDrawerGroup';
@@ -82,6 +88,14 @@ const BotEditPage: React.FC = () => {
     DEFAULT_SEARCH_CONFIG
   );
   const [tools, setTools] = useState<AgentTool[]>([]);
+  const [conversationQuickStarters, setConversationQuickStarters] = useState<
+    ConversationQuickStarter[]
+  >([
+    {
+      title: '',
+      example: '',
+    },
+  ]);
 
   const {
     errorMessages,
@@ -94,7 +108,7 @@ const BotEditPage: React.FC = () => {
   }, [paramsBotId]);
 
   const botId = useMemo(() => {
-    return isNewBot ? ulid() : paramsBotId ?? '';
+    return isNewBot ? ulid() : (paramsBotId ?? '');
   }, [isNewBot, paramsBotId]);
 
   useEffect(() => {
@@ -102,6 +116,12 @@ const BotEditPage: React.FC = () => {
       setIsLoading(true);
       getMyBot(botId)
         .then((bot) => {
+          // Disallow editing of bots created under opposite VITE_APP_ENABLE_KB environment state
+          if (bot.bedrockKnowledgeBase) {
+            navigate('/');
+            return;
+          }
+
           setTools(bot.agent.tools);
           setTitle(bot.title);
           setDescription(bot.description);
@@ -134,6 +154,16 @@ const BotEditPage: React.FC = () => {
               bot.syncStatusReason
             );
           }
+          setConversationQuickStarters(
+            bot.conversationQuickStarters.length > 0
+              ? bot.conversationQuickStarters
+              : [
+                  {
+                    title: '',
+                    example: '',
+                  },
+                ]
+          );
         })
         .finally(() => {
           setIsLoading(false);
@@ -269,6 +299,45 @@ const BotEditPage: React.FC = () => {
     [deletedFilenames, removeAddedFilenames, removeUnchangedFilenames]
   );
 
+  const addQuickStarter = useCallback(() => {
+    setConversationQuickStarters(
+      produce(conversationQuickStarters, (draft) => {
+        draft.push({
+          title: '',
+          example: '',
+        });
+      })
+    );
+  }, [conversationQuickStarters]);
+
+  const updateQuickStarter = useCallback(
+    (quickStart: ConversationQuickStarter, index: number) => {
+      setConversationQuickStarters(
+        produce(conversationQuickStarters, (draft) => {
+          draft[index] = quickStart;
+        })
+      );
+    },
+    [conversationQuickStarters]
+  );
+
+  const removeQuickStarter = useCallback(
+    (index: number) => {
+      setConversationQuickStarters(
+        produce(conversationQuickStarters, (draft) => {
+          draft.splice(index, 1);
+          if (draft.length === 0) {
+            draft.push({
+              title: '',
+              example: '',
+            });
+          }
+        })
+      );
+    },
+    [conversationQuickStarters]
+  );
+
   const onClickBack = useCallback(() => {
     history.back();
   }, []);
@@ -351,6 +420,21 @@ const BotEditPage: React.FC = () => {
       return false;
     }
 
+    const isQsValid = conversationQuickStarters.every((rs, idx) => {
+      if ((!rs.title && !!rs.example) || (!!rs.title && !rs.example)) {
+        setErrorMessages(
+          `conversationQuickStarter${idx}`,
+          t('validation.quickStarter.message')
+        );
+        return false;
+      } else {
+        return true;
+      }
+    });
+    if (!isQsValid) {
+      return false;
+    }
+
     return (
       isValidGenerationConfigParam(maxTokens, 'maxTokens') &&
       isValidGenerationConfigParam(topK, 'topK') &&
@@ -358,21 +442,25 @@ const BotEditPage: React.FC = () => {
       isValidGenerationConfigParam(temperature, 'temperature')
     );
   }, [
-    embeddingParams,
+    clearErrorMessages,
+    embeddingParams.chunkSize,
+    embeddingParams.chunkOverlap,
+    stopSequences.length,
+    searchParams.maxResults,
+    conversationQuickStarters,
+    isValidGenerationConfigParam,
     maxTokens,
     topK,
     topP,
     temperature,
-    stopSequences,
-    searchParams,
-    clearErrorMessages,
     setErrorMessages,
-    isValidGenerationConfigParam,
     t,
   ]);
 
   const onClickCreate = useCallback(() => {
-    if (!isValid()) return;
+    if (!isValid()) {
+      return;
+    }
     setIsLoading(true);
     registerBot({
       agent: {
@@ -399,9 +487,13 @@ const BotEditPage: React.FC = () => {
         sourceUrls: urls.filter((s) => s !== ''),
         // Sitemap cannot be used yet.
         sitemapUrls: [],
+        s3Urls: [],
         filenames: files.map((f) => f.filename),
       },
       displayRetrievedChunks,
+      conversationQuickStarters: conversationQuickStarters.filter(
+        (qs) => qs.title !== '' && qs.example !== ''
+      ),
     })
       .then(() => {
         navigate('/bot/explore');
@@ -410,29 +502,33 @@ const BotEditPage: React.FC = () => {
         setIsLoading(false);
       });
   }, [
-    registerBot,
     isValid,
+    registerBot,
     tools,
     botId,
     title,
     description,
     instruction,
-    urls,
-    files,
-    embeddingParams,
-    displayRetrievedChunks,
+    embeddingParams.chunkSize,
+    embeddingParams.chunkOverlap,
+    embeddingParams.enablePartitionPdf,
     maxTokens,
     temperature,
     topK,
     topP,
     stopSequences,
     searchParams,
+    urls,
+    files,
+    displayRetrievedChunks,
+    conversationQuickStarters,
     navigate,
   ]);
 
   const onClickEdit = useCallback(() => {
-    if (!isValid()) return;
-
+    if (!isValid()) {
+      return;
+    }
     if (!isNewBot) {
       setIsLoading(true);
       updateBot(botId, {
@@ -459,11 +555,15 @@ const BotEditPage: React.FC = () => {
           sourceUrls: urls.filter((s) => s !== ''),
           // Sitemap cannot be used yet.
           sitemapUrls: [],
+          s3Urls: [],
           addedFilenames,
           deletedFilenames,
           unchangedFilenames,
         },
         displayRetrievedChunks,
+        conversationQuickStarters: conversationQuickStarters.filter(
+          (qs) => qs.title !== '' && qs.example !== ''
+        ),
       })
         .then(() => {
           navigate('/bot/explore');
@@ -473,26 +573,29 @@ const BotEditPage: React.FC = () => {
         });
     }
   }, [
-    isNewBot,
     isValid,
+    isNewBot,
     updateBot,
-    tools,
     botId,
+    tools,
     title,
     description,
     instruction,
-    urls,
-    addedFilenames,
-    deletedFilenames,
-    unchangedFilenames,
-    embeddingParams,
-    displayRetrievedChunks,
+    embeddingParams?.chunkSize,
+    embeddingParams?.chunkOverlap,
+    embeddingParams?.enablePartitionPdf,
     maxTokens,
     temperature,
     topK,
     topP,
     stopSequences,
     searchParams,
+    urls,
+    addedFilenames,
+    deletedFilenames,
+    unchangedFilenames,
+    displayRetrievedChunks,
+    conversationQuickStarters,
     navigate,
   ]);
 
@@ -602,6 +705,9 @@ const BotEditPage: React.FC = () => {
                         />
                         <ButtonIcon
                           className="text-red"
+                          disabled={
+                            (urls.length === 1 && !urls[0]) || isLoading
+                          }
                           onClick={() => {
                             onClickRemoveUrl(idx);
                           }}>
@@ -650,6 +756,92 @@ const BotEditPage: React.FC = () => {
                 </div>
               </div>
 
+              <div className="mt-3">
+                <div className="flex items-center gap-1">
+                  <div className="text-lg font-bold">
+                    {t('bot.label.quickStarter.title')}
+                  </div>
+                </div>
+
+                <div className="text-sm text-aws-font-color/50">
+                  {t('bot.help.quickStarter.overview')}
+                </div>
+
+                <div className="mt-2">
+                  <div className="mt-2 flex w-full flex-col gap-1">
+                    {conversationQuickStarters.map(
+                      (conversationQuickStarter, idx) => (
+                        <div
+                          className="flex w-full flex-col gap-2 rounded border border-aws-font-color/50 p-2"
+                          key={idx}>
+                          <InputText
+                            className="w-full"
+                            placeholder={t(
+                              'bot.label.quickStarter.exampleTitle'
+                            )}
+                            disabled={isLoading}
+                            value={conversationQuickStarter.title}
+                            onChange={(s) => {
+                              updateQuickStarter(
+                                {
+                                  ...conversationQuickStarter,
+                                  title: s,
+                                },
+                                idx
+                              );
+                            }}
+                            errorMessage={
+                              errorMessages[`conversationQuickStarter${idx}`]
+                            }
+                          />
+
+                          <Textarea
+                            className="w-full"
+                            label={t('bot.label.quickStarter.example')}
+                            disabled={isLoading}
+                            rows={3}
+                            value={conversationQuickStarter.example}
+                            onChange={(s) => {
+                              updateQuickStarter(
+                                {
+                                  ...conversationQuickStarter,
+                                  example: s,
+                                },
+                                idx
+                              );
+                            }}
+                          />
+                          <div className="flex justify-end">
+                            <Button
+                              className="bg-red"
+                              disabled={
+                                (conversationQuickStarters.length === 1 &&
+                                  !conversationQuickStarters[0].title &&
+                                  !conversationQuickStarters[0].example) ||
+                                isLoading
+                              }
+                              icon={<PiTrash />}
+                              onClick={() => {
+                                removeQuickStarter(idx);
+                              }}>
+                              {t('button.delete')}
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <div className="mt-2">
+                    <Button
+                      outlined
+                      icon={<PiPlus />}
+                      onClick={addQuickStarter}>
+                      {t('button.add')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
               <ExpandableDrawerGroup
                 isDefaultShow={false}
                 label={t('generationConfig.title')}
@@ -685,7 +877,7 @@ const BotEditPage: React.FC = () => {
                       <div className="flex items-center gap-1">
                         {t('embeddingSettings.chunkSize.label')}
                         <Help
-                          direction="right"
+                          direction={TooltipDirection.RIGHT}
                           message={t('embeddingSettings.help.chunkSize')}
                         />
                       </div>
@@ -712,7 +904,7 @@ const BotEditPage: React.FC = () => {
                       <div className="flex items-center gap-1">
                         {t('embeddingSettings.chunkOverlap.label')}
                         <Help
-                          direction="right"
+                          direction={TooltipDirection.RIGHT}
                           message={t('embeddingSettings.help.chunkOverlap')}
                         />
                       </div>

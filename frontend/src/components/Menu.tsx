@@ -1,15 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Button from './Button';
 import { PiList, PiSignOut, PiTranslate, PiTrash } from 'react-icons/pi';
 import { useTranslation } from 'react-i18next';
-import DialogSelectLanguage from './DialogSelectLanguage';
 import { BaseProps } from '../@types/common';
-import DialogConfirmClearConversations from './DialogConfirmClearConversations';
-import useConversation from '../hooks/useConversation';
-import { useNavigate } from 'react-router-dom';
 
 type Props = BaseProps & {
   onSignOut: () => void;
+  onSelectLanguage: () => void;
+  onClearConversations: () => void;
 };
 
 // 認証時に表示するメニューコンポーネント
@@ -17,11 +15,6 @@ const Menu: React.FC<Props> = (props) => {
   const { t } = useTranslation();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [isOpenLangage, setIsOpenLangage] = useState(false);
-  const [isOpenClearConversation, setIsOpenClearConversation] = useState(false);
-
-  const { clearConversations: clear } = useConversation();
-  const navigate = useNavigate();
 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -47,17 +40,6 @@ const Menu: React.FC<Props> = (props) => {
     };
   }, [menuRef]);
 
-  const clearConversations = useCallback(
-    () => {
-      clear().then(() => {
-        navigate('');
-        setIsOpenClearConversation(false);
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
   return (
     <>
       <Button
@@ -79,7 +61,7 @@ const Menu: React.FC<Props> = (props) => {
             className="flex w-full cursor-pointer items-center p-2 hover:bg-aws-sea-blue-hover"
             onClick={() => {
               setIsOpen(false);
-              setIsOpenLangage(true);
+              props.onSelectLanguage();
             }}>
             <PiTranslate className="mr-2" />
             {t('button.language')}
@@ -88,7 +70,7 @@ const Menu: React.FC<Props> = (props) => {
             className="flex w-full cursor-pointer items-center p-2 hover:bg-aws-sea-blue-hover"
             onClick={() => {
               setIsOpen(false);
-              setIsOpenClearConversation(true);
+              props.onClearConversations();
             }}>
             <PiTrash className="mr-2" />
             {t('button.clearConversation')}
@@ -101,20 +83,6 @@ const Menu: React.FC<Props> = (props) => {
           </div>
         </div>
       )}
-
-      <DialogSelectLanguage
-        isOpen={isOpenLangage}
-        onClose={() => {
-          setIsOpenLangage(false);
-        }}
-      />
-      <DialogConfirmClearConversations
-        isOpen={isOpenClearConversation}
-        onClose={() => {
-          setIsOpenClearConversation(false);
-        }}
-        onDelete={clearConversations}
-      />
     </>
   );
 };

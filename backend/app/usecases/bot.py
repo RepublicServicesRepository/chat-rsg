@@ -31,11 +31,13 @@ from app.repositories.models.custom_bot import (
     BotAliasModel,
     BotMeta,
     BotModel,
+    ConversationQuickStarterModel,
     EmbeddingParamsModel,
     GenerationParamsModel,
     KnowledgeModel,
     SearchParamsModel,
 )
+from app.repositories.models.custom_bot_kb import BedrockKnowledgeBaseModel
 from app.routes.schemas.bot import (
     Agent,
     AgentTool,
@@ -44,12 +46,14 @@ from app.routes.schemas.bot import (
     BotModifyOutput,
     BotOutput,
     BotSummaryOutput,
+    ConversationQuickStarter,
     EmbeddingParams,
     GenerationParams,
     Knowledge,
     SearchParams,
     type_sync_status,
 )
+from app.routes.schemas.bot_kb import BedrockKnowledgeBaseOutput
 from app.utils import (
     compose_upload_document_s3_path,
     compose_upload_temp_s3_path,
@@ -100,15 +104,18 @@ def create_new_bot(user_id: str, bot_input: BotInput) -> BotOutput:
         len(bot_input.knowledge.source_urls) > 0
         or len(bot_input.knowledge.sitemap_urls) > 0
         or len(bot_input.knowledge.filenames) > 0
+        or len(bot_input.knowledge.s3_urls) > 0
     )
     sync_status: type_sync_status = "QUEUED" if has_knowledge else "SUCCEEDED"
 
     source_urls = []
     sitemap_urls = []
     filenames = []
+    s3_urls = []
     if bot_input.knowledge:
         source_urls = bot_input.knowledge.source_urls
         sitemap_urls = bot_input.knowledge.sitemap_urls
+        s3_urls = bot_input.knowledge.s3_urls
 
         # Commit changes to S3
         _update_s3_documents_by_diff(
@@ -184,7 +191,10 @@ def create_new_bot(user_id: str, bot_input: BotInput) -> BotOutput:
             search_params=SearchParamsModel(**search_params),
             agent=agent,
             knowledge=KnowledgeModel(
-                source_urls=source_urls, sitemap_urls=sitemap_urls, filenames=filenames
+                source_urls=source_urls,
+                sitemap_urls=sitemap_urls,
+                filenames=filenames,
+                s3_urls=s3_urls,
             ),
             sync_status=sync_status,
             sync_status_reason="",
@@ -193,6 +203,24 @@ def create_new_bot(user_id: str, bot_input: BotInput) -> BotOutput:
             published_api_datetime=None,
             published_api_codebuild_id=None,
             display_retrieved_chunks=bot_input.display_retrieved_chunks,
+            conversation_quick_starters=(
+                []
+                if bot_input.conversation_quick_starters is None
+                else [
+                    ConversationQuickStarterModel(
+                        title=starter.title,
+                        example=starter.example,
+                    )
+                    for starter in bot_input.conversation_quick_starters
+                ]
+            ),
+            bedrock_knowledge_base=(
+                BedrockKnowledgeBaseModel(
+                    **(bot_input.bedrock_knowledge_base.model_dump())
+                )
+                if bot_input.bedrock_knowledge_base
+                else None
+            ),
         ),
     )
     return BotOutput(
@@ -219,12 +247,33 @@ def create_new_bot(user_id: str, bot_input: BotInput) -> BotOutput:
             ]
         ),
         knowledge=Knowledge(
-            source_urls=source_urls, sitemap_urls=sitemap_urls, filenames=filenames
+            source_urls=source_urls,
+            sitemap_urls=sitemap_urls,
+            filenames=filenames,
+            s3_urls=s3_urls,
         ),
         sync_status=sync_status,
         sync_status_reason="",
         sync_last_exec_id="",
         display_retrieved_chunks=bot_input.display_retrieved_chunks,
+        conversation_quick_starters=(
+            []
+            if bot_input.conversation_quick_starters is None
+            else [
+                ConversationQuickStarter(
+                    title=starter.title,
+                    example=starter.example,
+                )
+                for starter in bot_input.conversation_quick_starters
+            ]
+        ),
+        bedrock_knowledge_base=(
+            BedrockKnowledgeBaseOutput(
+                **(bot_input.bedrock_knowledge_base.model_dump())
+            )
+            if bot_input.bedrock_knowledge_base
+            else None
+        ),
     )
 
 
@@ -235,11 +284,13 @@ def modify_owned_bot(
     source_urls = []
     sitemap_urls = []
     filenames = []
+    s3_urls = []
     sync_status: type_sync_status = "QUEUED"
 
     if modify_input.knowledge:
         source_urls = modify_input.knowledge.source_urls
         sitemap_urls = modify_input.knowledge.sitemap_urls
+        s3_urls = modify_input.knowledge.s3_urls
 
         # Commit changes to S3
         _update_s3_documents_by_diff(
@@ -326,10 +377,29 @@ def modify_owned_bot(
             source_urls=source_urls,
             sitemap_urls=sitemap_urls,
             filenames=filenames,
+            s3_urls=s3_urls,
         ),
         sync_status=sync_status,
         sync_status_reason="",
         display_retrieved_chunks=modify_input.display_retrieved_chunks,
+        conversation_quick_starters=(
+            []
+            if modify_input.conversation_quick_starters is None
+            else [
+                ConversationQuickStarterModel(
+                    title=starter.title,
+                    example=starter.example,
+                )
+                for starter in modify_input.conversation_quick_starters
+            ]
+        ),
+        bedrock_knowledge_base=(
+            BedrockKnowledgeBaseModel(
+                **modify_input.bedrock_knowledge_base.model_dump()
+            )
+            if modify_input.bedrock_knowledge_base
+            else None
+        ),
     )
 
     return BotModifyOutput(
@@ -354,6 +424,25 @@ def modify_owned_bot(
             source_urls=source_urls,
             sitemap_urls=sitemap_urls,
             filenames=filenames,
+            s3_urls=s3_urls,
+        ),
+        conversation_quick_starters=(
+            []
+            if modify_input.conversation_quick_starters is None
+            else [
+                ConversationQuickStarter(
+                    title=starter.title,
+                    example=starter.example,
+                )
+                for starter in modify_input.conversation_quick_starters
+            ]
+        ),
+        bedrock_knowledge_base=(
+            BedrockKnowledgeBaseOutput(
+                **(modify_input.bedrock_knowledge_base.model_dump())
+            )
+            if modify_input.bedrock_knowledge_base
+            else None
         ),
     )
 
@@ -425,6 +514,7 @@ def fetch_all_bots_by_user_id(
                     description=bot.description,
                     is_public=True,
                     sync_status=bot.sync_status,
+                    has_bedrock_knowledge_base=bot.has_bedrock_knowledge_base(),
                 )
             except RecordNotFoundError:
                 # Original bot is removed
@@ -442,6 +532,7 @@ def fetch_all_bots_by_user_id(
                     description="This item is no longer available",
                     is_public=False,
                     sync_status="ORIGINAL_NOT_FOUND",
+                    has_bedrock_knowledge_base=False,
                 )
 
             if is_original_available and (
@@ -449,6 +540,11 @@ def fetch_all_bots_by_user_id(
                 or bot.description != item["Description"]
                 or bot.sync_status != item["SyncStatus"]
                 or bot.has_knowledge() != item["HasKnowledge"]
+                or bot.conversation_quick_starters
+                != [
+                    ConversationQuickStarter(**starter)
+                    for starter in item.get("ConversationQuickStarters", [])
+                ]
             ):
                 # Update alias to the latest original bot
                 store_alias(
@@ -464,6 +560,8 @@ def fetch_all_bots_by_user_id(
                         is_pinned=item["IsPinned"],
                         sync_status=bot.sync_status,
                         has_knowledge=bot.has_knowledge(),
+                        has_agent=bot.is_agent_enabled(),
+                        conversation_quick_starters=bot.conversation_quick_starters,
                     ),
                 )
 
@@ -482,6 +580,9 @@ def fetch_all_bots_by_user_id(
                     description=item["Description"],
                     is_public="PublicBotId" in item,
                     sync_status=item["SyncStatus"],
+                    has_bedrock_knowledge_base=(
+                        True if item.get("BedrockKnowledgeBase", None) else False
+                    ),
                 )
             )
 
@@ -503,6 +604,14 @@ def fetch_bot_summary(user_id: str, bot_id: str) -> BotSummaryOutput:
             owned=True,
             sync_status=bot.sync_status,
             has_knowledge=bot.has_knowledge(),
+            conversation_quick_starters=[
+                ConversationQuickStarter(
+                    title=starter.title,
+                    example=starter.example,
+                )
+                for starter in bot.conversation_quick_starters
+            ],
+            owned_and_has_bedrock_knowledge_base=bot.has_bedrock_knowledge_base(),
         )
 
     except RecordNotFoundError:
@@ -518,10 +627,22 @@ def fetch_bot_summary(user_id: str, bot_id: str) -> BotSummaryOutput:
             last_used_time=alias.last_used_time,
             is_pinned=alias.is_pinned,
             is_public=True,
-            has_agent=bot.is_agent_enabled(),
+            has_agent=alias.has_agent,
             owned=False,
             sync_status=alias.sync_status,
             has_knowledge=alias.has_knowledge,
+            conversation_quick_starters=(
+                []
+                if alias.conversation_quick_starters is None
+                else [
+                    ConversationQuickStarter(
+                        title=starter.title,
+                        example=starter.example,
+                    )
+                    for starter in alias.conversation_quick_starters
+                ]
+            ),
+            owned_and_has_bedrock_knowledge_base=False,
         )
     except RecordNotFoundError:
         pass
@@ -543,6 +664,14 @@ def fetch_bot_summary(user_id: str, bot_id: str) -> BotSummaryOutput:
                 is_pinned=False,
                 sync_status=bot.sync_status,
                 has_knowledge=bot.has_knowledge(),
+                has_agent=bot.is_agent_enabled(),
+                conversation_quick_starters=[
+                    ConversationQuickStarterModel(
+                        title=starter.title,
+                        example=starter.example,
+                    )
+                    for starter in bot.conversation_quick_starters
+                ],
             ),
         )
         return BotSummaryOutput(
@@ -557,6 +686,14 @@ def fetch_bot_summary(user_id: str, bot_id: str) -> BotSummaryOutput:
             owned=False,
             sync_status=bot.sync_status,
             has_knowledge=bot.has_knowledge(),
+            conversation_quick_starters=[
+                ConversationQuickStarter(
+                    title=starter.title,
+                    example=starter.example,
+                )
+                for starter in bot.conversation_quick_starters
+            ],
+            owned_and_has_bedrock_knowledge_base=False,
         )
     except RecordNotFoundError:
         raise RecordNotFoundError(

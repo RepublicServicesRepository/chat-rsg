@@ -17,5 +17,6 @@ module.exports = {
     ],
     // Prettire で実施するので ESLint の Rule は無効化
     'tailwindcss/classnames-order': ['off'],
+    curly: ['error', 'all'],
   },
 };

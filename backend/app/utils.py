@@ -1,13 +1,12 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any, List, Literal
 
 import boto3
 import pg8000
-from anthropic import AnthropicBedrock
-from app.repositories.models.conversation import MessageModel
 from aws_lambda_powertools.utilities import parameters
 from botocore.client import Config
 from botocore.exceptions import ClientError
@@ -22,12 +21,23 @@ PUBLISH_API_CODEBUILD_PROJECT_NAME = os.environ.get(
 DB_SECRETS_ARN = os.environ.get("DB_SECRETS_ARN", "")
 
 
+def snake_to_camel(snake_str):
+    components = snake_str.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
+
+
+def convert_dict_keys_to_camel_case(snake_dict):
+    camel_dict = {}
+    for key, value in snake_dict.items():
+        new_key = snake_to_camel(key)
+        if isinstance(value, dict):
+            value = convert_dict_keys_to_camel_case(value)
+        camel_dict[new_key] = value
+    return camel_dict
+
+
 def is_running_on_lambda():
     return "AWS_EXECUTION_ENV" in os.environ
-
-
-def is_anthropic_model(model_id: str) -> bool:
-    return model_id.startswith("anthropic") or False
 
 
 def get_bedrock_client(region=BEDROCK_REGION):
@@ -35,8 +45,8 @@ def get_bedrock_client(region=BEDROCK_REGION):
     return client
 
 
-def get_anthropic_client(region=BEDROCK_REGION):
-    client = AnthropicBedrock(aws_region=region)
+def get_bedrock_agent_client(region=REGION):
+    client = boto3.client("bedrock-agent-runtime", region)
     return client
 
 

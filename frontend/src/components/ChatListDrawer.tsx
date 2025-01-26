@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { BaseProps } from '../@types/common';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import useDrawer from '../hooks/useDrawer';
 import ButtonIcon from './ButtonIcon';
 import {
@@ -23,29 +23,36 @@ import {
   PiX,
 } from 'react-icons/pi';
 import { PiCircleNotch } from 'react-icons/pi';
-import useConversation from '../hooks/useConversation';
 import LazyOutputText from './LazyOutputText';
-import DialogConfirmDelete from './DialogConfirmDeleteChat';
 import { ConversationMeta } from '../@types/conversation';
+import { BotListItem } from '../@types/bot';
 import { isMobile } from 'react-device-detect';
 import useChat from '../hooks/useChat';
 import { useTranslation } from 'react-i18next';
 import Menu from './Menu';
-import useBot from '../hooks/useBot';
 import DrawerItem from './DrawerItem';
 import ExpandableDrawerGroup from './ExpandableDrawerGroup';
-import useUser from '../hooks/useUser';
+import { usePageLabel } from '../routes';
 
 type Props = BaseProps & {
+  isAdmin: boolean;
+  conversations?: ConversationMeta[];
+  starredBots?: BotListItem[];
+  recentlyUsedUnsterredBots?: BotListItem[];
+  updateConversationTitle: (conversationId: string, title: string) => Promise<void>;
   onSignOut: () => void;
+  onDeleteConversation: (conversation: ConversationMeta) => void;
+  onClearConversations: () => void;
+  onSelectLanguage: () => void;
 };
 
 type ItemProps = BaseProps & {
   label: string;
-  to: string;
+  conversationId: string;
   generatedTitle?: boolean;
+  updateTitle: (conversationId: string, title: string) => Promise<void>;
   onClick: () => void;
-  onDelete: (conversationId: string) => void;
+  onDelete: () => void;
 };
 
 const Item: React.FC<ItemProps> = (props) => {
@@ -54,17 +61,16 @@ const Item: React.FC<ItemProps> = (props) => {
   const { conversationId } = useChat();
   const [tempLabel, setTempLabel] = useState('');
   const [editing, setEditing] = useState(false);
-  const { updateTitle } = useConversation();
 
   const inputRef = useRef<HTMLInputElement>(null);
 
   const active = useMemo<boolean>(() => {
     return (
-      pathParam === props.to ||
+      pathParam === props.conversationId ||
       ((pathname === '/' || pathname.startsWith('/bot/')) &&
-        conversationId == props.to)
+        conversationId == props.conversationId)
     );
-  }, [conversationId, pathParam, pathname, props.to]);
+  }, [conversationId, pathParam, pathname, props.conversationId]);
 
   const onClickEdit = useCallback(() => {
     setEditing(true);
@@ -72,16 +78,15 @@ const Item: React.FC<ItemProps> = (props) => {
   }, [props.label]);
 
   const onClickUpdate = useCallback(() => {
-    updateTitle(props.to, tempLabel).then(() => {
+    props.updateTitle(props.conversationId, tempLabel).then(() => {
       setEditing(false);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tempLabel, props.to]);
+  }, [tempLabel, props.conversationId, props.updateTitle]);
 
   const onClickDelete = useCallback(() => {
-    props.onDelete(props.to);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.to]);
+    props.onDelete();
+  }, [props]);
 
   useLayoutEffect(() => {
     if (editing) {
@@ -97,7 +102,7 @@ const Item: React.FC<ItemProps> = (props) => {
 
           // dispatch 処理の中で Title の更新を行う（同期を取るため）
           setTempLabel((newLabel) => {
-            updateTitle(props.to, newLabel).then(() => {
+            props.updateTitle(props.conversationId, newLabel).then(() => {
               setEditing(false);
             });
             return newLabel;
@@ -120,7 +125,7 @@ const Item: React.FC<ItemProps> = (props) => {
     <DrawerItem
       isActive={active}
       isBlur={!editing}
-      to={props.to}
+      to={`/${props.conversationId}`}
       onClick={props.onClick}
       icon={<PiChat />}
       labelComponent={
@@ -182,19 +187,15 @@ const Item: React.FC<ItemProps> = (props) => {
 
 const ChatListDrawer: React.FC<Props> = (props) => {
   const { t } = useTranslation();
+  const { getPageLabel } = usePageLabel();
   const { opened, switchOpen } = useDrawer();
-  const { conversations } = useConversation();
-  const { starredBots, recentlyUsedUnsterredBots } = useBot();
-
-  const { isAdmin } = useUser();
+  const { conversations, starredBots, recentlyUsedUnsterredBots } = props;
 
   const [prevConversations, setPrevConversations] =
     useState<typeof conversations>();
   const [generateTitleIndex, setGenerateTitleIndex] = useState(-1);
 
-  const { deleteConversation } = useConversation();
   const { newChat, conversationId } = useChat();
-  const navigate = useNavigate();
   const { botId } = useParams();
 
   useEffect(() => {
@@ -231,32 +232,6 @@ const ChatListDrawer: React.FC<Props> = (props) => {
     []
   );
 
-  const [isOpenDeleteModal, setIsOpenDeleteModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<
-    ConversationMeta | undefined
-  >();
-
-  const onDelete = useCallback(
-    (conversationId: string) => {
-      setIsOpenDeleteModal(true);
-      setDeleteTarget(conversations?.find((c) => c.id === conversationId));
-    },
-    [conversations]
-  );
-
-  const deleteChat = useCallback(
-    (conversationId: string) => {
-      deleteConversation(conversationId).then(() => {
-        newChat();
-        navigate('');
-        setIsOpenDeleteModal(false);
-        setDeleteTarget(undefined);
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
   const smallDrawer = useRef<HTMLDivElement>(null);
 
   const closeSamllDrawer = useCallback(() => {
@@ -287,12 +262,6 @@ const ChatListDrawer: React.FC<Props> = (props) => {
 
   return (
     <>
-      <DialogConfirmDelete
-        isOpen={isOpenDeleteModal}
-        target={deleteTarget}
-        onDelete={deleteChat}
-        onClose={() => setIsOpenDeleteModal(false)}
-      />
       <div className="relative h-full overflow-y-auto bg-aws-squid-ink scrollbar-thin scrollbar-track-white scrollbar-thumb-aws-squid-ink/30 ">
         <nav
           className={`lg:visible lg:w-64 ${
@@ -302,38 +271,35 @@ const ChatListDrawer: React.FC<Props> = (props) => {
             <DrawerItem
               isActive={false}
               icon={<PiNotePencil />}
-              to=""
+              to="/"
               onClick={onClickNewChat}
               labelComponent={t('button.newChat')}
             />
             <DrawerItem
               isActive={false}
               icon={<PiCompass />}
-              to="bot/explore"
-              labelComponent={t('button.botConsole')}
+              to="/bot/explore"
+              labelComponent={getPageLabel('/bot/explore')}
+              onClick={closeSamllDrawer}
             />
-            {isAdmin && (
+            {props.isAdmin && (
               <ExpandableDrawerGroup
                 label={t('app.adminConsoles')}
                 className="border-t pt-1">
                 <DrawerItem
                   isActive={false}
                   icon={<PiShareNetwork />}
-                  to="admin/shared-bot-analytics"
-                  labelComponent={t('button.sharedBotAnalytics')}
+                  to="/admin/shared-bot-analytics"
+                  labelComponent={getPageLabel('/admin/shared-bot-analytics')}
+                  onClick={closeSamllDrawer}
                 />
                 <DrawerItem
                   isActive={false}
                   icon={<PiGlobe />}
-                  to="admin/api-management"
-                  labelComponent={t('button.apiManagement')}
+                  to="/admin/api-management"
+                  labelComponent={getPageLabel('/admin/api-management')}
+                  onClick={closeSamllDrawer}
                 />
-                {/* <DrawerItem
-                  isActive={false}
-                  icon={<PiUsersThree />}
-                  to="admin/user-usages"
-                  labelComponent={t('button.userUsages')}
-                /> */}
               </ExpandableDrawerGroup>
             )}
 
@@ -344,7 +310,7 @@ const ChatListDrawer: React.FC<Props> = (props) => {
                 <DrawerItem
                   key={bot.id}
                   isActive={botId === bot.id && !conversationId}
-                  to={`bot/${bot.id}`}
+                  to={`/bot/${bot.id}`}
                   icon={<PiRobot />}
                   labelComponent={bot.title}
                   onClick={onClickNewBotChat}
@@ -361,7 +327,7 @@ const ChatListDrawer: React.FC<Props> = (props) => {
                   <DrawerItem
                     key={bot.id}
                     isActive={false}
-                    to={`bot/${bot.id}`}
+                    to={`/bot/${bot.id}`}
                     icon={<PiRobot />}
                     labelComponent={bot.title}
                     onClick={onClickNewBotChat}
@@ -382,10 +348,11 @@ const ChatListDrawer: React.FC<Props> = (props) => {
                   key={idx}
                   className="grow"
                   label={conversation.title}
-                  to={conversation.id}
+                  conversationId={conversation.id}
                   generatedTitle={idx === generateTitleIndex}
+                  updateTitle={props.updateConversationTitle}
                   onClick={closeSamllDrawer}
-                  onDelete={onDelete}
+                  onDelete={() => props.onDeleteConversation(conversation)}
                 />
               ))}
             </ExpandableDrawerGroup>
@@ -395,7 +362,11 @@ const ChatListDrawer: React.FC<Props> = (props) => {
             className={`${
               opened ? 'w-64' : 'w-0'
             } fixed bottom-0 flex h-12 items-center justify-start border-t bg-aws-squid-ink transition-width lg:w-64`}>
-            <Menu onSignOut={props.onSignOut} />
+            <Menu
+              onSignOut={props.onSignOut}
+              onSelectLanguage={props.onSelectLanguage}
+              onClearConversations={props.onClearConversations}
+            />
           </div>
         </nav>
       </div>

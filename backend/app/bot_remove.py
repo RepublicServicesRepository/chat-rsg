@@ -4,10 +4,14 @@ from typing import Any
 
 import boto3
 import pg8000
-from app.repositories.apigateway import delete_api_key, find_usage_plan_by_id
-from app.repositories.cloudformation import delete_stack_by_bot_id, find_stack_by_bot_id
+from app.repositories.api_publication import delete_api_key, find_usage_plan_by_id
+from app.repositories.api_publication import (
+    delete_stack_by_bot_id,
+    find_stack_by_bot_id,
+)
 from app.repositories.common import RecordNotFoundError, decompose_bot_id
 from aws_lambda_powertools.utilities import parameters
+from app.repositories.custom_bot import find_public_bot_by_id
 
 DB_SECRETS_ARN = os.environ.get("DB_SECRETS_ARN", "")
 DOCUMENT_BUCKET = os.environ.get("DOCUMENT_BUCKET", "documents")
@@ -41,6 +45,16 @@ def delete_from_postgres(bot_id: str):
         print(e)
     finally:
         conn.close()
+
+
+def delete_kb_stack_by_bot_id(bot_id: str):
+    client = boto3.client("cloudformation")
+    stack_name = f"BrChatKbStack{bot_id}"
+    try:
+        response = client.delete_stack(StackName=stack_name)
+    except client.exceptions.ClientError as e:
+        raise RecordNotFoundError()
+    return response
 
 
 def delete_from_s3(user_id: str, bot_id: str):
@@ -90,14 +104,21 @@ def handler(event, context):
     user_id = pk
     bot_id = decompose_bot_id(sk)
 
-    delete_from_postgres(bot_id)
     delete_from_s3(user_id, bot_id)
+
+    try:
+        print(f"Remove Bedrock Knowledge Base Stack.")
+        # Remove Knowledge Base Stack
+        delete_kb_stack_by_bot_id(bot_id)
+    except RecordNotFoundError:
+        print(f"Remove records from PostgreSQL.")
+        delete_from_postgres(bot_id)
 
     # Check if cloudformation stack exists
     try:
         stack = find_stack_by_bot_id(bot_id)
     except RecordNotFoundError:
-        print(f"Bot {bot_id} cloudformation stack not found. Skipping deletion.")
+        print(f"Bot {bot_id} api published stack not found. Skipping deletion.")
         return
 
     # Before delete cfn stack, delete all api keys

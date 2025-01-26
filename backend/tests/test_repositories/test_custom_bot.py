@@ -19,16 +19,25 @@ from app.repositories.custom_bot import (
     update_bot_last_used_time,
     update_bot_publication,
     update_bot_visibility,
+    update_knowledge_base_id,
 )
 from app.repositories.models.custom_bot import (
     AgentModel,
     AgentToolModel,
     BotAliasModel,
-    BotModel,
+    ConversationQuickStarterModel,
     EmbeddingParamsModel,
     GenerationParamsModel,
     KnowledgeModel,
     SearchParamsModel,
+)
+from app.repositories.models.custom_bot_kb import (
+    AnalyzerParamsModel,
+    BedrockKnowledgeBaseModel,
+    OpenSearchParamsModel,
+)
+from app.repositories.models.custom_bot_kb import (
+    SearchParamsModel as SearchParamsModelKB,
 )
 from app.usecases.bot import fetch_all_bots_by_user_id
 from tests.test_repositories.utils.bot_factory import (
@@ -47,6 +56,26 @@ class TestCustomBotRepository(unittest.TestCase):
             published_api_datetime=1627984879,
             published_api_codebuild_id="TestCodeBuildId",
             display_retrieved_chunks=True,
+            conversation_quick_starters=[
+                ConversationQuickStarterModel(title="QS title", example="QS example")
+            ],
+            bedrock_knowledge_base=BedrockKnowledgeBaseModel(
+                embeddings_model="titan_v2",
+                open_search=OpenSearchParamsModel(
+                    analyzer=AnalyzerParamsModel(
+                        character_filters=["icu_normalizer"],
+                        tokenizer="kuromoji_tokenizer",
+                        token_filters=["kuromoji_baseform"],
+                    )
+                ),
+                search_params=SearchParamsModelKB(
+                    max_results=20,
+                    search_type="hybrid",
+                ),
+                chunking_strategy="default",
+                max_tokens=2000,
+                overlap_percentage=0,
+            ),
         )
         store_bot("user1", bot)
 
@@ -79,11 +108,33 @@ class TestCustomBotRepository(unittest.TestCase):
         self.assertEqual(bot.knowledge.source_urls, ["https://aws.amazon.com/"])
         self.assertEqual(bot.knowledge.sitemap_urls, ["https://aws.amazon.sitemap.xml"])
         self.assertEqual(bot.knowledge.filenames, ["test.txt"])
+        self.assertEqual(bot.knowledge.s3_urls, ["s3://test-user/test-bot/"])
         self.assertEqual(bot.sync_status, "RUNNING")
         self.assertEqual(bot.sync_status_reason, "reason")
         self.assertEqual(bot.sync_last_exec_id, "")
         self.assertEqual(bot.published_api_stack_name, "TestApiStack")
         self.assertEqual(bot.published_api_datetime, 1627984879)
+        self.assertEqual(len(bot.conversation_quick_starters), 1)
+        self.assertEqual(bot.conversation_quick_starters[0].title, "QS title")
+        self.assertEqual(bot.conversation_quick_starters[0].example, "QS example")
+        self.assertEqual(bot.bedrock_knowledge_base.embeddings_model, "titan_v2")
+        self.assertEqual(bot.bedrock_knowledge_base.chunking_strategy, "default")
+        self.assertEqual(bot.bedrock_knowledge_base.max_tokens, 2000)
+        self.assertEqual(bot.bedrock_knowledge_base.overlap_percentage, 0)
+        self.assertEqual(
+            bot.bedrock_knowledge_base.open_search.analyzer.character_filters,
+            ["icu_normalizer"],
+        )
+        self.assertEqual(
+            bot.bedrock_knowledge_base.open_search.analyzer.tokenizer,
+            "kuromoji_tokenizer",
+        )
+        self.assertEqual(
+            bot.bedrock_knowledge_base.open_search.analyzer.token_filters,
+            ["kuromoji_baseform"],
+        )
+        self.assertEqual(bot.bedrock_knowledge_base.search_params.max_results, 20)
+        self.assertEqual(bot.bedrock_knowledge_base.search_params.search_type, "hybrid")
 
         # Assert bot is stored in user1's bot list
         bot = find_private_bots_by_user_id("user1")
@@ -133,6 +184,36 @@ class TestCustomBotRepository(unittest.TestCase):
 
         delete_bot_by_id("user1", "1")
 
+    def test_update_knowledge_base_id(self):
+        bot = create_test_private_bot(
+            "1",
+            False,
+            "user1",
+            bedrock_knowledge_base=BedrockKnowledgeBaseModel(
+                embeddings_model="titan_v2",
+                open_search=OpenSearchParamsModel(
+                    analyzer=AnalyzerParamsModel(
+                        character_filters=["icu_normalizer"],
+                        tokenizer="kuromoji_tokenizer",
+                        token_filters=["kuromoji_baseform"],
+                    )
+                ),
+                search_params=SearchParamsModelKB(
+                    max_results=20,
+                    search_type="hybrid",
+                ),
+                chunking_strategy="default",
+                max_tokens=2000,
+                overlap_percentage=0,
+            ),
+        )
+        store_bot("user1", bot)
+        update_knowledge_base_id("user1", "1", "kb1", ["ds1", "ds2"])
+        bot = find_private_bot_by_id("user1", "1")
+        self.assertEqual(bot.bedrock_knowledge_base.knowledge_base_id, "kb1")
+        self.assertEqual(bot.bedrock_knowledge_base.data_source_ids, ["ds1", "ds2"])
+        delete_bot_by_id("user1", "1")
+
     def test_update_bot(self):
         bot = create_test_private_bot("1", False, "user1")
         store_bot("user1", bot)
@@ -147,7 +228,7 @@ class TestCustomBotRepository(unittest.TestCase):
             ),
             generation_params=GenerationParamsModel(
                 max_tokens=2500,
-                top_k=200,
+                top_k=250,
                 top_p=0.99,
                 temperature=0.2,
                 stop_sequences=["Human: ", "Assistant: "],
@@ -166,10 +247,31 @@ class TestCustomBotRepository(unittest.TestCase):
                 source_urls=["https://updated.com/"],
                 sitemap_urls=["https://updated.xml"],
                 filenames=["updated.txt"],
+                s3_urls=["s3://test-user/test-bot/"],
             ),
             sync_status="RUNNING",
             sync_status_reason="reason",
             display_retrieved_chunks=False,
+            conversation_quick_starters=[
+                ConversationQuickStarterModel(title="QS title", example="QS example")
+            ],
+            bedrock_knowledge_base=BedrockKnowledgeBaseModel(
+                embeddings_model="titan_v2",
+                open_search=OpenSearchParamsModel(
+                    analyzer=AnalyzerParamsModel(
+                        character_filters=["icu_normalizer"],
+                        tokenizer="kuromoji_tokenizer",
+                        token_filters=["kuromoji_baseform"],
+                    )
+                ),
+                search_params=SearchParamsModelKB(
+                    max_results=20,
+                    search_type="hybrid",
+                ),
+                chunking_strategy="default",
+                max_tokens=2000,
+                overlap_percentage=0,
+            ),
         )
 
         bot = find_private_bot_by_id("user1", "1")
@@ -182,7 +284,7 @@ class TestCustomBotRepository(unittest.TestCase):
         self.assertEqual(bot.embedding_params.enable_partition_pdf, False)
 
         self.assertEqual(bot.generation_params.max_tokens, 2500)
-        self.assertEqual(bot.generation_params.top_k, 200)
+        self.assertEqual(bot.generation_params.top_k, 250)
         self.assertEqual(bot.generation_params.top_p, 0.99)
         self.assertEqual(bot.generation_params.temperature, 0.2)
 
@@ -195,6 +297,26 @@ class TestCustomBotRepository(unittest.TestCase):
         self.assertEqual(bot.sync_status, "RUNNING")
         self.assertEqual(bot.sync_status_reason, "reason")
         self.assertEqual(bot.display_retrieved_chunks, False)
+        self.assertEqual(len(bot.conversation_quick_starters), 1)
+        self.assertEqual(bot.conversation_quick_starters[0].title, "QS title")
+        self.assertEqual(bot.conversation_quick_starters[0].example, "QS example")
+
+        self.assertEqual(bot.bedrock_knowledge_base.embeddings_model, "titan_v2")
+        self.assertEqual(bot.bedrock_knowledge_base.chunking_strategy, "default")
+        self.assertEqual(bot.bedrock_knowledge_base.max_tokens, 2000)
+        self.assertEqual(bot.bedrock_knowledge_base.overlap_percentage, 0)
+        self.assertEqual(
+            bot.bedrock_knowledge_base.open_search.analyzer.character_filters,
+            ["icu_normalizer"],
+        )
+        self.assertEqual(
+            bot.bedrock_knowledge_base.open_search.analyzer.tokenizer,
+            "kuromoji_tokenizer",
+        )
+        self.assertEqual(
+            bot.bedrock_knowledge_base.open_search.analyzer.token_filters,
+            ["kuromoji_baseform"],
+        )
 
         delete_bot_by_id("user1", "1")
 
@@ -224,6 +346,10 @@ class TestFindAllBots(unittest.IsolatedAsyncioTestCase):
             is_pinned=True,
             sync_status="RUNNING",
             has_knowledge=True,
+            has_agent=True,
+            conversation_quick_starters=[
+                ConversationQuickStarterModel(title="QS title", example="QS example")
+            ],
         )
         alias2 = BotAliasModel(
             id="alias2",
@@ -236,6 +362,10 @@ class TestFindAllBots(unittest.IsolatedAsyncioTestCase):
             is_pinned=False,
             sync_status="RUNNING",
             has_knowledge=True,
+            has_agent=True,
+            conversation_quick_starters=[
+                ConversationQuickStarterModel(title="QS title", example="QS example")
+            ],
         )
         store_bot("user1", bot1)
         store_bot("user1", bot2)
@@ -299,6 +429,10 @@ class TestUpdateBotVisibility(unittest.TestCase):
             is_pinned=True,
             sync_status="RUNNING",
             has_knowledge=True,
+            has_agent=True,
+            conversation_quick_starters=[
+                ConversationQuickStarterModel(title="QS title", example="QS example")
+            ],
         )
         store_bot("user1", bot1)
         store_bot("user1", bot2)
@@ -336,10 +470,13 @@ class TestUpdateBotVisibility(unittest.TestCase):
                 max_results=20,
             ),
             agent=AgentModel(tools=[]),
-            knowledge=KnowledgeModel(source_urls=[], sitemap_urls=[], filenames=[]),
+            knowledge=KnowledgeModel(
+                source_urls=[], sitemap_urls=[], filenames=[], s3_urls=[]
+            ),
             sync_status="RUNNING",
             sync_status_reason="",
             display_retrieved_chunks=True,
+            conversation_quick_starters=[],
         )
         bots = fetch_all_bots_by_user_id("user1", limit=3)
         self.assertEqual(len(bots), 3)

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { translations } from '@aws-amplify/ui-react';
-import { Amplify, I18n } from 'aws-amplify';
+import { Amplify } from 'aws-amplify';
+import { I18n } from 'aws-amplify/utils';
 import '@aws-amplify/ui-react/styles.css';
 import AuthAmplify from './components/AuthAmplify';
 import AuthCustom from './components/AuthCustom';
@@ -9,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import './i18n';
 import { validateSocialProvider } from './utils/SocialProviderUtils';
 import AppContent from './components/AppContent';
+import { ErrorBoundary } from 'react-error-boundary';
+import ErrorFallback from './pages/ErrorFallback';
 
 const customProviderEnabled =
   import.meta.env.VITE_APP_CUSTOM_PROVIDER_ENABLED === 'true';
@@ -31,15 +34,18 @@ const App: React.FC = () => {
 
   Amplify.configure({
     Auth: {
-      userPoolId: import.meta.env.VITE_APP_USER_POOL_ID,
-      userPoolWebClientId: import.meta.env.VITE_APP_USER_POOL_CLIENT_ID,
-      authenticationFlowType: 'USER_SRP_AUTH',
-      oauth: {
-        domain: import.meta.env.VITE_APP_COGNITO_DOMAIN,
-        scope: ['openid', 'email'],
-        redirectSignIn: import.meta.env.VITE_APP_REDIRECT_SIGNIN_URL,
-        redirectSignOut: import.meta.env.VITE_APP_REDIRECT_SIGNOUT_URL,
-        responseType: 'code',
+      Cognito: {
+        userPoolId: import.meta.env.VITE_APP_USER_POOL_ID,
+        userPoolClientId: import.meta.env.VITE_APP_USER_POOL_CLIENT_ID,
+        loginWith: {
+          oauth: {
+            domain: import.meta.env.VITE_APP_COGNITO_DOMAIN,
+            scopes: ['openid', 'email'],
+            redirectSignIn: [import.meta.env.VITE_APP_REDIRECT_SIGNIN_URL],
+            redirectSignOut: [import.meta.env.VITE_APP_REDIRECT_SIGNOUT_URL],
+            responseType: 'code',
+          },
+        },
       },
     },
   });
@@ -48,7 +54,7 @@ const App: React.FC = () => {
   I18n.setLanguage(i18n.language);
 
   return (
-    <>
+    <ErrorBoundary fallback={<ErrorFallback />}>
       {customProviderEnabled ? (
         <AuthCustom>
           <AppContent />
@@ -60,7 +66,7 @@ const App: React.FC = () => {
           </AuthAmplify>
         </Authenticator.Provider>
       )}
-    </>
+    </ErrorBoundary>
   );
 };
 

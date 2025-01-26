@@ -12,6 +12,8 @@ import { IBucket } from "aws-cdk-lib/aws-s3";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import { ISecret } from "aws-cdk-lib/aws-secretsmanager";
 import * as cdk from "aws-cdk-lib";
+import * as codebuild from "aws-cdk-lib/aws-codebuild";
+import { excludeDockerImage } from "../constants/docker";
 import {
   DockerImageCode,
   DockerImageFunction,
@@ -19,6 +21,8 @@ import {
 } from "aws-cdk-lib/aws-lambda";
 import { DynamoEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { SociIndexBuild } from "deploy-time-build";
+import * as sfn from "aws-cdk-lib/aws-stepfunctions";
+import * as tasks from "aws-cdk-lib/aws-stepfunctions-tasks";
 
 export interface EmbeddingProps {
   readonly vpc: ec2.IVpc;
@@ -29,46 +33,96 @@ export interface EmbeddingProps {
   readonly documentBucket: IBucket;
   readonly embeddingContainerVcpu: number;
   readonly embeddingContainerMemory: number;
+  readonly bedrockKnowledgeBaseProject: codebuild.IProject;
 }
 
 export class Embedding extends Construct {
   readonly taskSecurityGroup: ec2.ISecurityGroup;
   readonly container: ecs.ContainerDefinition;
   readonly removalHandler: IFunction;
+  private _cluster: ecs.Cluster;
+  private _updateSyncStatusHandler: IFunction;
+  private _fetchStackOutputHandler: IFunction;
+  private _StoreKnowledgeBaseIdHandler: IFunction;
+  private _taskDefinition: ecs.FargateTaskDefinition;
+  private _pipeRole: iam.Role;
+  private _stateMachine: sfn.StateMachine;
+  private _taskSecurityGroup: ec2.ISecurityGroup;
+  private _container: ecs.ContainerDefinition;
+  private _removalHandler: IFunction;
+
   constructor(scope: Construct, id: string, props: EmbeddingProps) {
     super(scope, id);
 
-    /**
-     * ECS
-     */
-    const cluster = new ecs.Cluster(this, "Cluster", {
+    this.setupCluster(props)
+      .setupEcsTaskDefinition(props)
+      .createEcsContainer(props)
+      .setupStateMachineHandlers(props)
+      .setupStateMachine(props)
+      .setupEventBridgePipe(props)
+      .setupRemovalHandler(props);
+    this.outputValues();
+
+    this.taskSecurityGroup = this._taskSecurityGroup;
+    this.container = this._container;
+    this.removalHandler = this._removalHandler;
+  }
+
+  private setupCluster(props: EmbeddingProps): this {
+    this._cluster = new ecs.Cluster(this, "Cluster", {
       vpc: props.vpc,
       containerInsights: true,
     });
-    const taskDefinition = new ecs.FargateTaskDefinition(
+    return this;
+  }
+
+  private setupEcsTaskDefinition(props: EmbeddingProps): this {
+    if (!this._cluster) {
+      throw new Error(
+        "Cluster must be initialized before setting up the task definition"
+      );
+    }
+
+    this._taskSecurityGroup = new ec2.SecurityGroup(this, "TaskSecurityGroup", {
+      vpc: props.vpc,
+      allowAllOutbound: true,
+    });
+
+    this._taskDefinition = new ecs.FargateTaskDefinition(
       this,
       "TaskDefinition",
       {
         cpu: props.embeddingContainerVcpu,
         memoryLimitMiB: props.embeddingContainerMemory,
+        ephemeralStorageGiB: 100,
         runtimePlatform: {
           cpuArchitecture: ecs.CpuArchitecture.X86_64,
           operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
         },
       }
     );
-    taskDefinition.addToTaskRolePolicy(
+    this._taskDefinition.addToTaskRolePolicy(
       new iam.PolicyStatement({
         actions: ["bedrock:*"],
         resources: ["*"],
       })
     );
-    taskDefinition.addToTaskRolePolicy(
+    this._taskDefinition.addToTaskRolePolicy(
       new iam.PolicyStatement({
         actions: ["sts:AssumeRole"],
         resources: [props.tableAccessRole.roleArn],
       })
     );
+    return this;
+  }
+
+  private createEcsContainer(props: EmbeddingProps): this {
+    if (!this._taskDefinition) {
+      throw new Error(
+        "Task definition must be set up before creating the container"
+      );
+    }
+
     const taskLogGroup = new logs.LogGroup(this, "TaskLogGroup", {
       removalPolicy: RemovalPolicy.DESTROY,
       retention: logs.RetentionDays.ONE_WEEK,
@@ -76,12 +130,15 @@ export class Embedding extends Construct {
 
     const asset = new DockerImageAsset(this, "Image", {
       directory: path.join(__dirname, "../../../backend"),
-      file: "embedding.Dockerfile",
+      file: "embedding/Dockerfile",
       platform: Platform.LINUX_AMD64,
+      exclude: [
+        ...excludeDockerImage
+      ]
     });
     SociIndexBuild.fromDockerImageAsset(this, "Index", asset);
 
-    const container = taskDefinition.addContainer("Container", {
+    this._container = this._taskDefinition.addContainer("Container", {
       image: ecs.AssetImage.fromDockerImageAsset(asset),
       logging: ecs.LogDriver.awsLogs({
         streamPrefix: "embed-task",
@@ -97,24 +154,399 @@ export class Embedding extends Construct {
         DOCUMENT_BUCKET: props.documentBucket.bucketName,
       },
     });
-    taskLogGroup.grantWrite(container.taskDefinition.executionRole!);
-    props.dbSecrets.grantRead(container.taskDefinition.taskRole);
-    const taskSg = new ec2.SecurityGroup(this, "TaskSecurityGroup", {
-      vpc: props.vpc,
-      allowAllOutbound: true,
+    taskLogGroup.grantWrite(this._container.taskDefinition.executionRole!);
+    props.dbSecrets.grantRead(this._container.taskDefinition.taskRole);
+    this._container.taskDefinition.executionRole?.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "service-role/AmazonECSTaskExecutionRolePolicy"
+      )
+    );
+    return this;
+  }
+
+  private setupStateMachineHandlers(props: EmbeddingProps): this {
+    const handlerRole = new iam.Role(this, "HandlerRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    });
+    handlerRole.addToPolicy(
+      // Assume the table access role for row-level access control.
+      new iam.PolicyStatement({
+        actions: ["sts:AssumeRole"],
+        resources: [props.tableAccessRole.roleArn],
+      })
+    );
+    handlerRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:*"],
+        resources: ["*"],
+      })
+    );
+    handlerRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "service-role/AWSLambdaVPCAccessExecutionRole"
+      )
+    );
+    handlerRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "cloudformation:DescribeStacks",
+          "cloudformation:DescribeStackEvents",
+          "cloudformation:DescribeStackResource",
+          "cloudformation:DescribeStackResources",
+        ],
+        resources: [`*`],
+      })
+    );
+
+    this._updateSyncStatusHandler = new DockerImageFunction(
+      this,
+      "UpdateSyncStatusHandler",
+      {
+        code: DockerImageCode.fromImageAsset(
+          path.join(__dirname, "../../../backend"),
+          {
+            platform: Platform.LINUX_AMD64,
+            file: "lambda.Dockerfile",
+            cmd: [
+              "embedding_statemachine.bedrock_knowledge_base.update_bot_status.handler",
+            ],
+            exclude: [
+              ...excludeDockerImage
+            ]
+          }
+        ),
+        memorySize: 512,
+        timeout: Duration.minutes(1),
+        environment: {
+          ACCOUNT: Stack.of(this).account,
+          REGION: Stack.of(this).region,
+          TABLE_NAME: props.database.tableName,
+          TABLE_ACCESS_ROLE_ARN: props.tableAccessRole.roleArn,
+        },
+        role: handlerRole,
+      }
+    );
+
+    this._fetchStackOutputHandler = new DockerImageFunction(
+      this,
+      "FetchStackOutputHandler",
+      {
+        code: DockerImageCode.fromImageAsset(
+          path.join(__dirname, "../../../backend"),
+          {
+            platform: Platform.LINUX_AMD64,
+            file: "lambda.Dockerfile",
+            cmd: [
+              "embedding_statemachine.bedrock_knowledge_base.fetch_stack_output.handler",
+            ],
+            exclude: [
+              ...excludeDockerImage
+            ]
+          }
+        ),
+        memorySize: 512,
+        timeout: Duration.minutes(1),
+        role: handlerRole,
+      }
+    );
+    this._StoreKnowledgeBaseIdHandler = new DockerImageFunction(
+      this,
+      "StoreKnowledgeBaseIdHandler",
+      {
+        code: DockerImageCode.fromImageAsset(
+          path.join(__dirname, "../../../backend"),
+          {
+            platform: Platform.LINUX_AMD64,
+            file: "lambda.Dockerfile",
+            cmd: [
+              "embedding_statemachine.bedrock_knowledge_base.store_knowledge_base_id.handler",
+            ],
+            exclude: [
+              ...excludeDockerImage
+            ]
+          }
+        ),
+        memorySize: 512,
+        timeout: Duration.minutes(1),
+        environment: {
+          ACCOUNT: Stack.of(this).account,
+          REGION: Stack.of(this).region,
+          TABLE_NAME: props.database.tableName,
+          TABLE_ACCESS_ROLE_ARN: props.tableAccessRole.roleArn,
+        },
+        role: handlerRole,
+      }
+    );
+    return this;
+  }
+
+  private setupStateMachine(props: EmbeddingProps): this {
+    if (!this._container) {
+      throw new Error(
+        "Container must be created before setting up the state machine"
+      );
+    }
+
+    const extractFirstElement = new sfn.Pass(this, "ExtractFirstElement", {
+      parameters: {
+        "dynamodb.$": "$[0].dynamodb",
+        "eventID.$": "$[0].eventID",
+        "eventName.$": "$[0].eventName",
+        "eventSource.$": "$[0].eventSource",
+        "eventVersion.$": "$[0].eventVersion",
+        "awsRegion.$": "$[0].awsRegion",
+        "eventSourceARN.$": "$[0].eventSourceARN",
+      },
+      resultPath: "$",
     });
 
-    /**
-     * EventBridge Pipes
-     */
+    const ecsTask = new tasks.EcsRunTask(this, "RunEcsTask", {
+      integrationPattern: sfn.IntegrationPattern.RUN_JOB,
+      cluster: this._cluster,
+      taskDefinition: this._taskDefinition,
+      launchTarget: new tasks.EcsFargateLaunchTarget(),
+      containerOverrides: [
+        {
+          containerDefinition: this._container,
+          // We use environment variables to pass the event data to the ecs task
+          // instead of command because JsonPath is not supported on command
+          environment: [
+            {
+              name: "EVENT",
+              // Note that DynamoDB stream batch size is 1
+              value: sfn.JsonPath.stringAt(
+                "States.JsonToString($[0].dynamodb.Keys)"
+              ),
+            },
+          ],
+        },
+      ],
+      assignPublicIp: false,
+      securityGroups: [this._taskSecurityGroup],
+      subnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+    });
+
+    const startKnowledgeBaseBuild = new tasks.CodeBuildStartBuild(
+      this,
+      "StartKnowledgeBaseBuild",
+      {
+        project: props.bedrockKnowledgeBaseProject,
+        integrationPattern: sfn.IntegrationPattern.RUN_JOB,
+        environmentVariablesOverride: {
+          PK: {
+            type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+            value: sfn.JsonPath.stringAt("$.dynamodb.NewImage.PK.S"),
+          },
+          SK: {
+            type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+            value: sfn.JsonPath.stringAt("$.dynamodb.NewImage.SK.S"),
+          },
+          // Bucket name provisioned by the bedrock stack
+          BEDROCK_CLAUDE_CHAT_DOCUMENT_BUCKET_NAME: {
+            type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+            value: props.documentBucket.bucketName,
+          },
+          // Source info e.g. file names, URLs, etc.
+          KNOWLEDGE: {
+            type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+            value: sfn.JsonPath.stringAt(
+              "States.JsonToString($.dynamodb.NewImage.Knowledge.M)"
+            ),
+          },
+          // Bedrock Knowledge Base configuration
+          BEDROCK_KNOWLEDGE_BASE: {
+            type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+            value: sfn.JsonPath.stringAt(
+              "States.JsonToString($.dynamodb.NewImage.BedrockKnowledgeBase.M)"
+            ),
+          },
+        },
+        resultPath: "$.Build",
+      }
+    );
+
+    const updateSyncStatusRunning = this.createUpdateSyncStatusTask(
+      "UpdateSyncStatusRunning",
+      "RUNNING"
+    );
+
+    const updateSyncStatusSucceeded = this.createUpdateSyncStatusTask(
+      "UpdateSyncStatusSuccess",
+      "SUCCEEDED",
+      "Knowledge base sync succeeded"
+    );
+
+    const updateSyncStatusFailed = new tasks.LambdaInvoke(
+      this,
+      "UpdateSyncStatusFailed",
+      {
+        lambdaFunction: this._updateSyncStatusHandler,
+        payload: sfn.TaskInput.fromObject({
+          "cause.$": "$.Cause",
+        }),
+        resultPath: sfn.JsonPath.DISCARD,
+      }
+    );
+
+    const fallback = updateSyncStatusFailed.next(
+      new sfn.Fail(this, "Fail", {
+        cause: "Knowledge base sync failed",
+        error: "Knowledge base sync failed",
+      })
+    );
+    startKnowledgeBaseBuild.addCatch(fallback);
+
+    const fetchStackOutput = new tasks.LambdaInvoke(this, "FetchStackOutput", {
+      lambdaFunction: this._fetchStackOutputHandler,
+      payload: sfn.TaskInput.fromObject({
+        "pk.$": "$.dynamodb.NewImage.PK.S",
+        "sk.$": "$.dynamodb.NewImage.SK.S",
+      }),
+      resultPath: "$.StackOutput",
+    });
+    fetchStackOutput.addCatch(fallback);
+
+    const storeKnowledgeBaseId = new tasks.LambdaInvoke(
+      this,
+      "StoreKnowledgeBaseId",
+      {
+        lambdaFunction: this._StoreKnowledgeBaseIdHandler,
+        payload: sfn.TaskInput.fromObject({
+          "pk.$": "$.dynamodb.NewImage.PK.S",
+          "sk.$": "$.dynamodb.NewImage.SK.S",
+          "stack_output.$": "$.StackOutput.Payload",
+        }),
+        resultPath: sfn.JsonPath.DISCARD,
+      }
+    );
+    storeKnowledgeBaseId.addCatch(fallback);
+
+    const startIngestionJob = new tasks.CallAwsService(
+      this,
+      "StartIngestionJob",
+      {
+        service: "bedrockagent",
+        action: "startIngestionJob",
+        iamAction: "bedrock:StartIngestionJob",
+        parameters: {
+          DataSourceId: sfn.JsonPath.stringAt("$.DataSourceId"),
+          KnowledgeBaseId: sfn.JsonPath.stringAt("$.KnowledgeBaseId"),
+        },
+        // Ref: https://docs.aws.amazon.com/ja_jp/service-authorization/latest/reference/list_amazonbedrock.html#amazonbedrock-knowledge-base
+        iamResources: [
+          `arn:${Stack.of(this).partition}:bedrock:${Stack.of(this).region}:${
+            Stack.of(this).account
+          }:knowledge-base/*`,
+        ],
+        resultPath: "$.IngestionJob",
+      }
+    );
+
+    const getIngestionJob = new tasks.CallAwsService(this, "GetIngestionJob", {
+      service: "bedrockagent",
+      action: "getIngestionJob",
+      iamAction: "bedrock:GetIngestionJob",
+      parameters: {
+        DataSourceId: sfn.JsonPath.stringAt(
+          "$.IngestionJob.IngestionJob.DataSourceId"
+        ),
+        KnowledgeBaseId: sfn.JsonPath.stringAt(
+          "$.IngestionJob.IngestionJob.KnowledgeBaseId"
+        ),
+        IngestionJobId: sfn.JsonPath.stringAt(
+          "$.IngestionJob.IngestionJob.IngestionJobId"
+        ),
+      },
+      // Ref: https://docs.aws.amazon.com/ja_jp/service-authorization/latest/reference/list_amazonbedrock.html#amazonbedrock-knowledge-base
+      iamResources: [
+        `arn:${Stack.of(this).partition}:bedrock:${Stack.of(this).region}:${
+          Stack.of(this).account
+        }:knowledge-base/*`,
+      ],
+      resultPath: "$.IngestionJob",
+    });
+
+    const waitTask = new sfn.Wait(this, "WaitSeconds", {
+      time: sfn.WaitTime.duration(Duration.seconds(3)),
+    });
+
+    const checkIngestionJobStatus = new sfn.Choice(
+      this,
+      "CheckIngestionJobStatus"
+    )
+      .when(
+        sfn.Condition.stringEquals(
+          "$.IngestionJob.IngestionJob.Status",
+          "COMPLETE"
+        ),
+        new sfn.Pass(this, "IngestionJobCompleted")
+      )
+      .when(
+        sfn.Condition.stringEquals(
+          "$.IngestionJob.IngestionJob.Status",
+          "FAILED"
+        ),
+        new tasks.LambdaInvoke(this, "UpdateSyncStatusFailedForIngestion", {
+          lambdaFunction: this._updateSyncStatusHandler,
+          payload: sfn.TaskInput.fromObject({
+            pk: sfn.JsonPath.stringAt("$.PK"),
+            sk: sfn.JsonPath.stringAt("$.SK"),
+            ingestion_job: sfn.JsonPath.stringAt("$.IngestionJob"),
+          }),
+          resultPath: sfn.JsonPath.DISCARD,
+        }).next(
+          new sfn.Fail(this, "IngestionFail", {
+            cause: "Ingestion job failed",
+            error: "Ingestion job failed",
+          })
+        )
+      )
+      .otherwise(waitTask.next(getIngestionJob));
+
+    const mapIngestionJobs = new sfn.Map(this, "MapIngestionJobs", {
+      inputPath: "$.StackOutput.Payload",
+      resultPath: sfn.JsonPath.DISCARD,
+      maxConcurrency: 1,
+    }).itemProcessor(
+      startIngestionJob.next(getIngestionJob).next(checkIngestionJobStatus)
+    );
+
+    const definition = new sfn.Choice(this, "CheckKnowledgeBaseExists")
+      .when(
+        sfn.Condition.isPresent("$[0].dynamodb.NewImage.BedrockKnowledgeBase"),
+        extractFirstElement
+          .next(updateSyncStatusRunning)
+          .next(startKnowledgeBaseBuild)
+          .next(fetchStackOutput)
+          .next(storeKnowledgeBaseId)
+          .next(mapIngestionJobs)
+          .next(updateSyncStatusSucceeded)
+      )
+      .otherwise(ecsTask);
+
+    this._stateMachine = new sfn.StateMachine(this, "StateMachine", {
+      definitionBody: sfn.DefinitionBody.fromChainable(definition),
+    });
+    return this;
+  }
+
+  private setupEventBridgePipe(props: EmbeddingProps): this {
+    if (!this._stateMachine) {
+      throw new Error(
+        "State machine must be set up before setting up the EventBridge pipe"
+      );
+    }
+
     const pipeLogGroup = new logs.LogGroup(this, "PipeLogGroup", {
       removalPolicy: RemovalPolicy.DESTROY,
       retention: logs.RetentionDays.ONE_WEEK,
     });
-    const pipeRole = new iam.Role(this, "PipeRole", {
+    this._pipeRole = new iam.Role(this, "PipeRole", {
       assumedBy: new iam.ServicePrincipal("pipes.amazonaws.com"),
     });
-    pipeRole.addToPolicy(
+    this._pipeRole.addToPolicy(
       new iam.PolicyStatement({
         actions: [
           "dynamodb:DescribeStream",
@@ -125,36 +557,28 @@ export class Embedding extends Construct {
         resources: [props.database.tableStreamArn!],
       })
     );
-    pipeRole.addToPolicy(
+    this._pipeRole.addToPolicy(
       new iam.PolicyStatement({
-        actions: ["ecs:RunTask"],
-        resources: [
-          taskDefinition.taskDefinitionArn,
-          `${taskDefinition.taskDefinitionArn}:*`,
-        ],
+        actions: ["states:StartExecution"],
+        resources: [this._stateMachine.stateMachineArn],
       })
     );
-    pipeRole.addToPolicy(
+    this._pipeRole.addToPolicy(
       new iam.PolicyStatement({
-        actions: ["iam:PassRole"],
-        resources: ["*"],
-        conditions: {
-          StringLike: {
-            "iam:PassedToService": "ecs-tasks.amazonaws.com",
-          },
-        },
+        actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
+        resources: [pipeLogGroup.logGroupArn],
       })
     );
-    const pipe = new CfnPipe(this, "Pipe", {
+
+    new CfnPipe(this, "Pipe", {
       source: props.database.tableStreamArn!,
       sourceParameters: {
         dynamoDbStreamParameters: {
           batchSize: 1,
           startingPosition: "LATEST",
-          maximumRetryAttempts: 1, // Avoid infinite retry which causes stuck
+          maximumRetryAttempts: 1,
         },
         filterCriteria: {
-          // Trigger when bot is created or updated
           filters: [
             {
               pattern:
@@ -163,35 +587,10 @@ export class Embedding extends Construct {
           ],
         },
       },
-      target: cluster.clusterArn,
+      target: this._stateMachine.stateMachineArn,
       targetParameters: {
-        ecsTaskParameters: {
-          enableEcsManagedTags: false,
-          enableExecuteCommand: false,
-          launchType: "FARGATE",
-          networkConfiguration: {
-            awsvpcConfiguration: {
-              assignPublicIp: "DISABLED",
-              subnets: props.vpc.selectSubnets({
-                subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-              }).subnetIds,
-              securityGroups: [taskSg.securityGroupId],
-            },
-          },
-          taskCount: 1,
-          taskDefinitionArn: taskDefinition.taskDefinitionArn,
-          overrides: {
-            // Pass event as argument.
-            // Ref: https://repost.aws/questions/QU_WC7301mT8qR7ip_9cyjdQ/eventbridge-pipes-and-ecs-task
-            containerOverrides: [
-              {
-                // Only pass keys and load the object from within the ECS task.
-                // https://github.com/aws-samples/bedrock-claude-chat/issues/190
-                command: ["-u", "embedding/main.py", "$.dynamodb.Keys"],
-                name: taskDefinition.defaultContainer!.containerName,
-              },
-            ],
-          },
+        stepFunctionStateMachineParameters: {
+          invocationType: "FIRE_AND_FORGET",
         },
       },
       logConfiguration: {
@@ -200,12 +599,13 @@ export class Embedding extends Construct {
         },
         level: "INFO",
       },
-      roleArn: pipeRole.roleArn,
+      roleArn: this._pipeRole.roleArn,
     });
 
-    /**
-     * Removal handler
-     */
+    return this;
+  }
+
+  private setupRemovalHandler(props: EmbeddingProps): this {
     const removeHandlerRole = new iam.Role(this, "RemovalHandlerRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
@@ -213,6 +613,13 @@ export class Embedding extends Construct {
       iam.ManagedPolicy.fromAwsManagedPolicyName(
         "service-role/AWSLambdaVPCAccessExecutionRole"
       )
+    );
+    removeHandlerRole.addToPolicy(
+      // Assume the table access role for row-level access control.
+      new iam.PolicyStatement({
+        actions: ["sts:AssumeRole"],
+        resources: [props.tableAccessRole.roleArn],
+      })
     );
     removeHandlerRole.addToPolicy(
       new iam.PolicyStatement({
@@ -241,26 +648,34 @@ export class Embedding extends Construct {
     );
     props.database.grantStreamRead(removeHandlerRole);
     props.documentBucket.grantReadWrite(removeHandlerRole);
-    const removalHandler = new DockerImageFunction(this, "BotRemovalHandler", {
+
+    this._removalHandler = new DockerImageFunction(this, "BotRemovalHandler", {
       code: DockerImageCode.fromImageAsset(
         path.join(__dirname, "../../../backend"),
         {
           platform: Platform.LINUX_AMD64,
-          file: "websocket.Dockerfile",
+          file: "lambda.Dockerfile",
           cmd: ["app.bot_remove.handler"],
+          exclude: [
+            ...excludeDockerImage,
+          ]
         }
       ),
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       timeout: Duration.minutes(1),
       environment: {
+        ACCOUNT: Stack.of(this).account,
+        REGION: Stack.of(this).region,
+        TABLE_NAME: props.database.tableName,
+        TABLE_ACCESS_ROLE_ARN: props.tableAccessRole.roleArn,
         DB_SECRETS_ARN: props.dbSecrets.secretArn,
         DOCUMENT_BUCKET: props.documentBucket.bucketName,
       },
       role: removeHandlerRole,
     });
-    props.dbSecrets.grantRead(removalHandler);
-    removalHandler.addEventSource(
+    props.dbSecrets.grantRead(this._removalHandler);
+    this._removalHandler.addEventSource(
       new DynamoEventSource(props.database, {
         startingPosition: lambda.StartingPosition.TRIM_HORIZON,
         batchSize: 1,
@@ -273,25 +688,51 @@ export class Embedding extends Construct {
       })
     );
 
-    this.taskSecurityGroup = taskSg;
-    this.container = container;
-    this.removalHandler = removalHandler;
+    return this;
+  }
 
+  private outputValues(): void {
     new CfnOutput(this, "ClusterName", {
-      value: cluster.clusterName,
+      value: this._cluster.clusterName,
     });
     new CfnOutput(this, "TaskDefinitionName", {
       value: cdk.Fn.select(
         1,
         cdk.Fn.split(
           "/",
-          cdk.Fn.select(5, cdk.Fn.split(":", taskDefinition.taskDefinitionArn))
+          cdk.Fn.select(
+            5,
+            cdk.Fn.split(":", this._taskDefinition.taskDefinitionArn)
+          )
         )
       ),
     });
-
     new CfnOutput(this, "TaskSecurityGroupId", {
-      value: taskSg.securityGroupId,
+      value: this._taskSecurityGroup.securityGroupId,
+    });
+  }
+
+  private createUpdateSyncStatusTask(
+    id: string,
+    syncStatus: string,
+    syncStatusReason?: string,
+    lastExecIdPath?: string
+  ): tasks.LambdaInvoke {
+    const payload: { [key: string]: any } = {
+      "pk.$": "$.dynamodb.NewImage.PK.S",
+      "sk.$": "$.dynamodb.NewImage.SK.S",
+      sync_status: syncStatus,
+      sync_status_reason: syncStatusReason || "",
+    };
+
+    if (lastExecIdPath) {
+      payload["last_exec_id.$"] = lastExecIdPath;
+    }
+
+    return new tasks.LambdaInvoke(this, id, {
+      lambdaFunction: this._updateSyncStatusHandler,
+      payload: sfn.TaskInput.fromObject(payload),
+      resultPath: sfn.JsonPath.DISCARD,
     });
   }
 }

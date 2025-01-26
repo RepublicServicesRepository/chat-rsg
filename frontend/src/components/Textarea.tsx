@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { BaseProps } from '../@types/common';
 import { twMerge } from 'tailwind-merge';
 
@@ -15,8 +15,8 @@ type Props = BaseProps & {
 
 const MAX_HEIGHT = 300;
 
-const Textarea: React.FC<Props> = (props) => {
-  const ref = useRef<HTMLTextAreaElement>(null);
+const Textarea = forwardRef<HTMLElement, Props>((props, focusInputRef) => {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
   const [isMax, setIsMax] = useState(false);
 
   useEffect(() => {
@@ -38,11 +38,20 @@ const Textarea: React.FC<Props> = (props) => {
   return (
     <div className={`${props.className ?? ''} flex w-full flex-col`}>
       <textarea
-        ref={ref}
+        ref={element => {
+          ref.current = element;
+          if (focusInputRef) {
+            if (typeof focusInputRef === 'function') {
+              focusInputRef(element);
+            } else {
+              focusInputRef.current = element;
+            }
+          }
+        }}
         className={twMerge(
           'peer w-full resize-none rounded p-1.5 outline-none',
           isMax ? 'overflow-y-auto' : 'overflow-hidden',
-          props.noBorder ? '' : 'border border-black/30',
+          props.noBorder ? '' : 'border border-aws-font-color/50',
           props.className
         )}
         rows={props.rows ?? 1}
@@ -63,6 +72,6 @@ const Textarea: React.FC<Props> = (props) => {
       )}
     </div>
   );
-};
+});
 
 export default Textarea;

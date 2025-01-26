@@ -6,6 +6,7 @@
       "README.md",
       "../backend/**/__pycache__",
       "../backend/tests/**",
+      "../backend/.mypy_cache/**",
       "cdk*.json",
       "**/*.d.ts",
       "**/*.js",
@@ -72,6 +73,8 @@
       "start": {}
     },
     "embeddingContainerVcpu": 2048,
-    "embeddingContainerMemory": 4096
+    "embeddingContainerMemory": 4096,
+    "natgatewayCount": 2,
+    "useBedrockKnowledgeBaseForRag": false
   }
 }

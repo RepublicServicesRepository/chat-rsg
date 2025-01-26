@@ -1,6 +1,9 @@
 # Bedrock Claude Chat
 
 > [!Warning]
+> 近々、v2 へのメジャーアップデートを予定しています。v1 とは後方互換性がなく、**既存の RAG ボットは使用できなくなる予定です。** 詳しくは[ガイド](./migration/V1_TO_V2.md)をご参照ください。
+
+> [!Warning]
 > 古いバージョン(v0.4.x 以前) を使用していて最新バージョンを使いたい場合は、[移行ガイド](./migration/V0_TO_V1.md)を参照してください。気をつけないと、Aurora クラスターのすべてのデータが破壊され、ユーザーはもはや既存の RAG ボットを利用できず、また新規にボットを作成できなくなります。
 
 このリポジトリは、生成系 AI を提供する[Amazon Bedrock](https://aws.amazon.com/jp/bedrock/)の基盤モデルの一つである、Anthropic 社製 LLM [Claude](https://www.anthropic.com/)を利用したチャットボットのサンプルです。
@@ -30,11 +33,11 @@
 ### エージェント
 
 [エージェント機能](./AGENT.md)を使うと、チャットボットがより複雑なタスクを自動的に処理できるようになります。例えば、ユーザーの質問に答えるために、必要な情報を外部ツールから取得したり、複数のステップに分けて処理したりすることができます。
-![](./imgs/agent.gif)
+![](./imgs/agent1.png)
 
 ## 🚀 まずはお試し
 
-- us-east-1 リージョンにて、[Bedrock Model access](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess) > `Manage model access` > `Anthropic / Claude 3 Haiku`, `Anthropic / Claude 3 Sonnet` `Cohere / Embed Multilingual`をチェックし、`Save changes`をクリックします
+- us-east-1 リージョンにて、[Bedrock Model access](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess) > `Manage model access` > `Anthropic / Claude 3 Haiku`, `Anthropic / Claude 3 Sonnet`, `Anthropic / Claude 3.5 Sonnet` `Cohere / Embed Multilingual`をチェックし、`Save changes`をクリックします
 
 <details>
 <summary>スクリーンショット</summary>
@@ -45,7 +48,7 @@
 
 - [CloudShell](https://console.aws.amazon.com/cloudshell/home)をデプロイしたいリージョン (ap-northeast-1 など) で開きます
 
-- 下記のコマンドでデプロイ実行します
+- 下記のコマンドでデプロイを実行します。デプロイするバージョンを指定したい場合や、セキュリティポリシーを適用する必要がある場合は、[オプションのパラメータ](#オプションのパラメータ)から該当するものを指定してください。
 
 ```sh
 git clone https://github.com/aws-samples/bedrock-claude-chat.git
@@ -54,22 +57,24 @@ chmod +x bin.sh
 ./bin.sh
 ```
 
-- 新規ユーザーまたは v1 ユーザーかどうかを聞かれます。その場合は `y` を入力してください。
+- 新規ユーザーまたは v1 ユーザーかどうかを聞かれます。v0 からの継続利用でない場合は `y` を入力してください。
 
 ### オプションのパラメータ
 
-デプロイ時に以下のパラメータを指定することで、セキュリティとカスタマイズを強化できるようになりました。
+デプロイ時に以下のパラメータを指定することで、セキュリティとカスタマイズを強化できます。
 
-- --disable-self-register: セルフ登録を無効にします（デフォルト: 有効）。このフラグを設定すると、Cognito 上で全てのユーザーを作成する必要があり、ユーザーが自分でアカウントを登録することはできなくなります。
-- --ipv4-ranges: 許可する IPv4 範囲のカンマ区切りリスト。（デフォルト: 全ての IPv4 アドレスを許可）
-- --ipv6-ranges: 許可する IPv6 範囲のカンマ区切りリスト。（デフォルト: 全ての IPv6 アドレスを許可）
-- --allowed-signup-email-domains: サインアップ時に許可するメールドメインのカンマ区切りリスト。（デフォルト: ドメイン制限なし）
-- --region: Bedrock が利用可能なリージョンを指定します。（デフォルト: us-east-1）
+- **--disable-self-register**: セルフ登録を無効にします（デフォルト: 有効）。このフラグを設定すると、Cognito 上で全てのユーザーを作成する必要があり、ユーザーが自分でアカウントを登録することはできなくなります。
+- **--ipv4-ranges**: 許可する IPv4 範囲のカンマ区切りリスト。（デフォルト: 全ての IPv4 アドレスを許可）
+- **--ipv6-ranges**: 許可する IPv6 範囲のカンマ区切りリスト。（デフォルト: 全ての IPv6 アドレスを許可）
+- **--disable-ipv6**: IPv6 での接続を無効にします (デフォルト: 有効)
+- **--allowed-signup-email-domains**: サインアップ時に許可するメールドメインのカンマ区切りリスト。（デフォルト: ドメイン制限なし）
+- **--bedrock-region**: Bedrock が利用可能なリージョンを指定します。（デフォルト: us-east-1）
+- **--version**: デプロイする Bedrock Claude Chat のバージョン。 (デフォルト: 開発中の最新バージョン)
 
 #### パラメータを指定したコマンド例:
 
 ```sh
-./bin.sh --disable-self-register --ipv4-ranges "192.0.2.0/25,192.0.2.128/25" --ipv6-ranges "2001:db8:1:2::/64,2001:db8:1:3::/64" --allowed-signup-email-domains "example.com,anotherexample.com" --region "ap-northeast-1"
+./bin.sh --disable-self-register --ipv4-ranges "192.0.2.0/25,192.0.2.128/25" --ipv6-ranges "2001:db8:1:2::/64,2001:db8:1:3::/64" --allowed-signup-email-domains "example.com,anotherexample.com" --bedrock-region "ap-northeast-1" --version "v1.2.6"
 ```
 
 - 30 分ほど経過後、下記の出力が得られるのでブラウザからアクセスします
@@ -84,6 +89,8 @@ Frontend URL: https://xxxxxxxxx.cloudfront.net
 
 > [!Important]
 > オプションのパラメータを設定しない場合、このデプロイ方法では URL を知っている誰でもサインアップできてしまいます。本番環境で使用する場合は、セキュリティリスクを軽減するために、IP アドレスの制限を追加し、セルフサインアップを無効にすることを強くお勧めします（`allowed-signup-email-domains` を定義して、会社のドメインからのメールアドレスのみがサインアップできるようにすることで、ユーザーを制限できます）。IP アドレスの制限には `ipv4-ranges` と `ipv6-ranges` の両方を使用し、`./bin` を実行する際に `disable-self-register` を使用してセルフサインアップを無効にしてください。
+
+> [!TIP] > `Frontend URL` が正しく表示されない場合や、Bedrock Claude Chat が正常に動作しない場合は、最新バージョンの不具合である可能性がありますので、パラメータに `--version "v1.2.6"` を追加して再度デプロイを試してみてください。
 
 ## アーキテクチャ
 
@@ -196,6 +203,14 @@ GENERATION_CONFIG = {
 
 ```
 "allowedSignUpEmailDomains": ["example.com"],
+```
+
+### NAT Gateway 数のカスタマイズ
+
+このサンプルはデフォルトでは 2 つの NAT Gateway がデプロイされますが、2 つの NAT Gateway が不要な場合は、NAT Gateway の数を変更してコストを削減できます。`cdk.json`を開き、 `natgatewayCount` のパラメータを変更してください。
+
+```ts
+"natgatewayCount": 2
 ```
 
 ### リソースの削除

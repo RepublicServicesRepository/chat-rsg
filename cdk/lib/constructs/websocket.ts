@@ -19,6 +19,7 @@ import { CfnRouteResponse } from "aws-cdk-lib/aws-apigatewayv2";
 import { ISecret } from "aws-cdk-lib/aws-secretsmanager";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import { excludeDockerImage } from "../constants/docker";
 
 export interface WebSocketProps {
   readonly vpc: ec2.IVpc;
@@ -27,9 +28,11 @@ export interface WebSocketProps {
   readonly auth: Auth;
   readonly bedrockRegion: string;
   readonly tableAccessRole: iam.IRole;
+  readonly documentBucket: s3.IBucket;
   readonly websocketSessionTable: ITable;
   readonly largeMessageBucket: s3.IBucket;
   readonly accessLogBucket?: s3.Bucket;
+  readonly enableMistral: boolean;
 }
 
 export class WebSocket extends Construct {
@@ -83,13 +86,17 @@ export class WebSocket extends Construct {
     largePayloadSupportBucket.grantRead(handlerRole);
     props.websocketSessionTable.grantReadWriteData(handlerRole);
     props.largeMessageBucket.grantReadWrite(handlerRole);
+    props.documentBucket.grantRead(handlerRole);
 
     const handler = new DockerImageFunction(this, "Handler", {
       code: DockerImageCode.fromImageAsset(
         path.join(__dirname, "../../../backend"),
         {
           platform: Platform.LINUX_AMD64,
-          file: "websocket.Dockerfile",
+          file: "lambda.Dockerfile",
+          exclude: [
+            ...excludeDockerImage
+          ]
         }
       ),
       vpc: props.vpc,
@@ -108,6 +115,7 @@ export class WebSocket extends Construct {
         DB_SECRETS_ARN: props.dbSecrets.secretArn,
         LARGE_PAYLOAD_SUPPORT_BUCKET: largePayloadSupportBucket.bucketName,
         WEBSOCKET_SESSION_TABLE_NAME: props.websocketSessionTable.tableName,
+        ENABLE_MISTRAL: props.enableMistral.toString(),
       },
       role: handlerRole,
     });

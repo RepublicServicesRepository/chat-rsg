@@ -1,4 +1,6 @@
+import base64
 from decimal import Decimal
+
 from pydantic.functional_serializers import PlainSerializer
 from typing_extensions import Annotated
 

@@ -1,4 +1,5 @@
-import React, {
+import {
+  forwardRef,
   useCallback,
   useEffect,
   useMemo,
@@ -7,7 +8,6 @@ import React, {
 } from 'react';
 import ButtonSend from '../../../components/ButtonSend';
 import Textarea from '../../../components/Textarea';
-import useChat from '../../../hooks/useChat';
 import Button from '../../../components/Button';
 import { PiArrowsCounterClockwise } from 'react-icons/pi';
 import { useTranslation } from 'react-i18next';
@@ -16,26 +16,23 @@ import { BaseProps } from '../../../@types/common';
 
 type Props = BaseProps & {
   disabledSend?: boolean;
+  disabledRegenerate?: boolean;
   disabled?: boolean;
   placeholder?: string;
-  dndMode?: boolean;
+  canRegenerate: boolean;
+  isLoading: boolean;
   onSend: (content: string, base64EncodedImages?: string[]) => void;
   onRegenerate: () => void;
 };
 
-export const TextInputChatContent: React.FC<Props> = (props) => {
+export const TextInputChatContent = forwardRef<HTMLElement, Props>((props, focusInputRef) => {
   const { t } = useTranslation();
-  const { postingMessage, hasError, messages } = useChat();
 
   const [content, setContent] = useState('');
 
   const disabledSend = useMemo(() => {
-    return content === '' || props.disabledSend || hasError;
-  }, [hasError, content, props.disabledSend]);
-
-  const disabledRegenerate = useMemo(() => {
-    return postingMessage || hasError;
-  }, [hasError, postingMessage]);
+    return content === '' || props.disabledSend;
+  }, [content, props.disabledSend]);
 
   const inputRef = useRef<HTMLDivElement>(null);
 
@@ -88,22 +85,23 @@ export const TextInputChatContent: React.FC<Props> = (props) => {
             noBorder
             value={content}
             onChange={setContent}
+            ref={focusInputRef}
           />
         </div>
         <div className="absolute bottom-0 right-0 flex items-center">
           <ButtonSend
             className="m-2 align-bottom"
             disabled={disabledSend || props.disabled}
-            loading={postingMessage}
+            loading={props.isLoading}
             onClick={sendContent}
           />
         </div>
 
-        {messages.length > 1 && (
+        {props.canRegenerate && (
           <Button
             className="absolute -top-14 right-0 bg-aws-paper p-2 text-sm"
             outlined
-            disabled={disabledRegenerate || props.disabled}
+            disabled={props.disabledRegenerate || props.disabled}
             onClick={props.onRegenerate}>
             <PiArrowsCounterClockwise className="mr-2" />
             {t('button.regenerate')}
@@ -112,4 +110,4 @@ export const TextInputChatContent: React.FC<Props> = (props) => {
       </div>
     </>
   );
-};
+});
