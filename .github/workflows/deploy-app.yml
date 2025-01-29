@@ -1,0 +1,38 @@
+name: Deploy App
+
+on:
+  push:
+    branches:
+      - develop
+      - qa
+      - v1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run deployment script
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          BRANCH=`echo ${GITHUB_REF/refs\/heads\//}`
+          Environment="${BRANCH}"
+          if [ "${BRANCH}" == "develop" ]; then Environment="dev"; fi
+          if [ "${BRANCH}" == "qa" ]; then Environment="qa"; fi
+          if [ "${BRANCH}" == "main" ]; then Environment="prod"; fi
+
+          echo "GITHUB_ACTION: ${GITHUB_ACTION}"
+          echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
+          echo "GITHUB_REF: ${GITHUB_REF}"
+          echo "BRANCH: ${BRANCH}"
+          echo "Environment: ${Environment}"
+          
+          export Environment
+          ./bin.sh --bedrock-region us-east-1 --allowed-signup-email-domains "republicservices.com,repsrv.com" --ipv4-ranges "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" --version "1.2.6"

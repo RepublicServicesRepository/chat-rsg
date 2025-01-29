@@ -47,6 +47,8 @@ IPV6_RANGES=""
 ALLOWED_SIGN_UP_EMAIL_DOMAINS=""
 BEDROCK_REGION="us-east-1"
 
+. ./config/.env.$Environment
+
 # Parse command-line arguments for customization
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -70,7 +72,7 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
-StackName="CodeBuildForDeployQa"
+StackName="CodeBuildForDeploy"$StackName
 
 # Deploy the CloudFormation stack
 aws cloudformation deploy \
