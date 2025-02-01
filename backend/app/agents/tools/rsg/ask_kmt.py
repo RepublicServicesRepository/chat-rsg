@@ -6,9 +6,9 @@ import json
 import logging
 
 
-from app.agents.tools.rsg.lib.kb_helper import retrieve_item
-from app.agents.tools.rsg.lib.utils import lookup_address
-from app.agents.tools.rsg.lib.utils import DecimalEncoder
+from app.agents.tools.rsg.common.kb_helper import retrieve_item
+from app.agents.tools.rsg.common.utils import lookup_address
+from app.agents.tools.rsg.common.utils import DecimalEncoder
 
 DIV_LEVEL_POLYGON_ID = "DSP0000"
 
