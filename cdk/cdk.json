@@ -57,6 +57,13 @@
       "0000:0000:0000:0000:0000:0000:0000:0000/1",
       "8000:0000:0000:0000:0000:0000:0000:0000/1"
     ],
+    "identityProviders": [
+      {
+        "service": "saml",
+        "serviceName": "azure-ad-sso"
+      }
+    ],
+    "userPoolDomainPrefix": "chat-rsg-qa",
     "allowedSignUpEmailDomains": [],
     "autoJoinUserGroups": ["CreatingBotAllowed"],
     "selfSignUpEnabled": true,
