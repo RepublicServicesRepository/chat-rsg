@@ -141,7 +141,7 @@ Resources:
               "build": {
                 "commands": [
                   "echo 'Build phase...'",
-                  "git clone --branch v1 https://github.com/RepublicServicesRepository/chat-rsg.git",
+                  "git clone --branch hk-US138912-chatRSG-KB https://github.com/RepublicServicesRepository/chat-rsg.git",
                   "cd chat-rsg",
                   "export CDK_DEFAULT_ACCOUNT=339712742482",
                   "export CDK_DEFAULT_REGION=us-east-1",
