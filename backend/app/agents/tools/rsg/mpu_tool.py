@@ -1,15 +1,12 @@
-from app.agents.tools.agent_tool import AgentTool
-from app.repositories.models.custom_bot import BotModel
-from app.routes.schemas.conversation import type_model_name
-from pydantic import BaseModel, Field
 import json
 import logging
+
+from app.agents.tools.base import  StructuredTool
+from langchain_core.pydantic_v1 import BaseModel, Field
 
 from app.agents.tools.rsg.common.utils import DecimalEncoder
 from app.agents.tools.rsg.common.mpu_actions import get_account_site, get_container
 from app.agents.tools.rsg.common.mpu_actions import get_container_schedule,get_division_announcements
-
-DIV_LEVEL_POLYGON_ID = "DSP0000"
 
 # add logger
 logger = logging.getLogger()
@@ -24,15 +21,8 @@ class MpuInput(BaseModel):
     mpuDate: str = Field(description="the missed pickup date the customer has question about")
 
 def handle_mpu(
-    arg: MpuInput, bot: BotModel | None, model: type_model_name | None
+    address:str, city:str, state: str, zip: str, containerType: str, mpuDate: str
 ) -> dict:
-    
-    address = arg.address
-    city = arg.city
-    state = arg.state
-    zip = arg.zip
-    containerType = arg.containerType
-    mpuDate = arg.mpuDate
     
     if address is None or city is None or state is None or containerType is None or mpuDate is None:
         return "Error: Address,Container Type and MPU Date are required"
@@ -83,10 +73,13 @@ def handle_mpu(
         "mpuDate": mpuDate,
         "mpuResponse": mpu_ressponse_json
     }
-    
-mpu_tool = AgentTool(
+
+
+mpu_tool = StructuredTool.from_function(
+    func=handle_mpu,
     name="mpu_tool",
     description="This tool is used for customer service to handle calles about mpu (Missed Pickup) issues. It checks various things like open account/site status, open containers on account and the container is actually scheduled to be pickup and there are no division level delayes. If all checks pass then creates a missed pick up case for the customer.",
     args_schema=MpuInput,
-    function=handle_mpu,
+    
 )
+    

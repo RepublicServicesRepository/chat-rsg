@@ -1,10 +1,8 @@
-from app.agents.tools.agent_tool import AgentTool
-from app.repositories.models.custom_bot import BotModel
-from app.routes.schemas.conversation import type_model_name
-from pydantic import BaseModel, Field
 import json
 import logging
 
+from app.agents.tools.base import  StructuredTool
+from langchain_core.pydantic_v1 import BaseModel, Field
 
 from app.agents.tools.rsg.common.kb_helper import retrieve_item
 from app.agents.tools.rsg.common.utils import lookup_address
@@ -17,6 +15,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 class AskKmtInput(BaseModel):
+  
     address: str = Field(description="customer's street address from the input address")
     city: str = Field(description="customer's city from the input address")
     state: str = Field(description="customer's state from the input address")
@@ -24,14 +23,8 @@ class AskKmtInput(BaseModel):
     item: str = Field(description="the item that the customer has question about")
 
 def ask_kmt(
-    arg: AskKmtInput, bot: BotModel | None, model: type_model_name | None
+    address: str, city:str, state: str, zip: str, item: str
 ) -> dict:
-    
-    address = arg.address
-    city = arg.city
-    state = arg.state
-    zip = arg.zip
-    item = arg.item
     
     if address is None or city is None or state is None or item is None:
         return "Error: Address and Item are required"
@@ -58,10 +51,11 @@ def ask_kmt(
         "item": item,
         "chunks": chunks_json
     }
-    
-ask_kmt_tool = AgentTool(
+
+ask_kmt_tool = StructuredTool.from_function(
+    func=ask_kmt,
     name="ask_kmt",
     description="This tool is used for customer service at a Trash pickup company. Context is around if a specific item can be recycled or picked up as trash. Retrive the KMT content associated to the customer's address and the item they are asking about",
     args_schema=AskKmtInput,
-    function=ask_kmt,
+    
 )
