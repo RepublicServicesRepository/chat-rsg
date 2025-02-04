@@ -1,6 +1,6 @@
 from decimal import Decimal
 import json
-from app.agents.tools.rsg.lib.gis import get_poly
+from app.agents.tools.rsg.common.gis import get_poly
 import logging
 
 # add logger

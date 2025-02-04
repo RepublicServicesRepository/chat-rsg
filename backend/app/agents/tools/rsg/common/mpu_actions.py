@@ -5,8 +5,8 @@ This module represents vraious actions of MPU Bedrock Agent Action Group.
 
 import logging
 import json
-from app.agents.tools.rsg.lib.es_api import invoke_es_api
-from app.agents.tools.rsg.lib.utils import lookup_address
+from app.agents.tools.rsg.common.es_api import invoke_es_api
+from app.agents.tools.rsg.common.utils import lookup_address
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

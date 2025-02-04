@@ -1,4 +1,4 @@
-from app.agents.tools.rsg.lib.kb import KB
+from app.agents.tools.rsg.common.kb import KB
 import os
 
 #function to retrieve relavant conetnt from KB for a given KMT item
