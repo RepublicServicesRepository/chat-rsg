@@ -28,6 +28,8 @@ def ask_kmt(
     
     if address is None or city is None or state is None or item is None:
         return "Error: Address and Item are required"
+    
+    logger.info(f"Address: {address}, City: {city}, State: {state}, Zip: {zip}, Item: {item}")
 
     #get division and polygon for the address using gis api
     gis_info = lookup_address(address,city,state,zip,'residential')
@@ -35,8 +37,11 @@ def ask_kmt(
     info_pro_division = f"DIV_{gis_info.get('info_pro_division')}"
     polygon = gis_info["polygon"]
 
+    logger.info(f"Division: {info_pro_division}, Polygon: {polygon}")
+
     #retieve the chunks from the KB
     results = retrieve_item(item, info_pro_division,polygon,DIV_LEVEL_POLYGON_ID)
+    logger.info(f"Results: {results}")
 
     # Serialize data with Decimal values
     chunks = json.dumps(results, cls=DecimalEncoder)

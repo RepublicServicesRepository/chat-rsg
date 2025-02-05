@@ -27,6 +27,8 @@ def handle_mpu(
     if address is None or city is None or state is None or containerType is None or mpuDate is None:
         return "Error: Address,Container Type and MPU Date are required"
     
+    logger.info(f"Address: {address}, City: {city}, State: {state}, Zip: {zip}, Container Type: {containerType}, MPU Date: {mpuDate}")
+    
     mpu_ressponse = {}
     try:
         account_site = get_account_site(address, city, state,zip)
@@ -35,21 +37,25 @@ def handle_mpu(
             mpu_ressponse["endPoint"] = account_site["endPoint"]
             mpu_ressponse["statusCode"] = account_site["statusCode"]
         else:
+            logger.info(f"Account Site: {account_site}")
             mpu_ressponse["account_site"] = account_site
             container = get_container(account_site["accountId"], account_site["siteId"], containerType)
             if(container.get("error")) is not None:
                 mpu_ressponse["error"] = container["error"]
             else:
+                logger.info(f"Container: {container}")
                 mpu_ressponse["container"] = container
                 container_schedule = get_container_schedule(account_site["divisionId"],container["containerId"], mpuDate)
                 if(container_schedule.get("error")) is not None:
                     mpu_ressponse["error"] = container_schedule["error"]
                 else:
+                    logger.info(f"Container Schedule: {container_schedule}")
                     mpu_ressponse["container_schedule"] = container_schedule
                     division_announcements = get_division_announcements(account_site["lawsonDivision"])
                     if(division_announcements.get("error")) is not None:
                         mpu_ressponse["error"] = division_announcements["error"]
                     else:
+                        logger.info(f"Division Announcements: {division_announcements}")
                         mpu_ressponse["division_announcements"] = division_announcements
                         # #create case
                         # case = create_case(container["infoProContainerId"], mpuDate)
@@ -64,6 +70,8 @@ def handle_mpu(
     # # Serialize data with Decimal values
     mpu_ressponse_dump = json.dumps(mpu_ressponse, cls=DecimalEncoder)
     mpu_ressponse_json = json.loads(mpu_ressponse_dump)
+
+    logger.info(f"MPU Response: {mpu_ressponse_json}")
 
     return {
         "address": address,
