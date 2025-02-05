@@ -11,7 +11,7 @@ from app.agents.tools.rsg.common.utils import DecimalEncoder
 DIV_LEVEL_POLYGON_ID = "DSP0000"
 
 # add logger
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class AskKmtInput(BaseModel):

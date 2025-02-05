@@ -9,7 +9,7 @@ from app.agents.tools.rsg.common.mpu_actions import get_account_site, get_contai
 from app.agents.tools.rsg.common.mpu_actions import get_container_schedule,get_division_announcements
 
 # add logger
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class MpuInput(BaseModel):
