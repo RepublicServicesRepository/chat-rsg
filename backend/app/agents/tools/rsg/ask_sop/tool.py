@@ -39,8 +39,15 @@ def ask_sop(
 
 ask_sop_tool = StructuredTool.from_function(
     func=ask_sop,
-    name="ask_sop",
-    description="This tool is used for customer service at a Trash pickup company. Retreives the relevant content for the standard oeprating procedure for the user's scenario/input/question",
+    name="AskSOP",
+    description="This tool is utilized by customer service representatives at a Trash pickup and recycle company. \
+            to access Standard Operating Procedures (SOPs) related to variious customer's questions about their trash. \
+            The function takes a string input describing the user's scenario, question, or specific situation. \
+            It then searches the company's SOP database to retrieve relevant content that addresses the given input \
+            The returned dictionary contains step-by-step instructions, guidelines, or protocols \
+            that the customer service representative should follow to handle the specific situation or  \
+            answer the customer's question. This ensures consistency in service delivery and adherence \
+            to company policies across various customer interactions.",
     args_schema=AskSopInput,
     
 )

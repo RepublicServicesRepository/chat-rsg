@@ -59,8 +59,15 @@ def ask_kmt(
 
 ask_kmt_tool = StructuredTool.from_function(
     func=ask_kmt,
-    name="ask_kmt",
-    description="This tool is used for customer service at a Trash pickup company. Context is around if a specific item that a customer has questions about. This tool retrives the KMT content associated to the customer's address and the item questions they are asking about",
+    name="AskKMT",
+    description="This tool is designed for customer service representatives at a Trash pickup and recycle company. \
+                 It retrieves Knowledge Management Tool (KMT) content related to specific items that \
+                 customers have questions about. The function takes the customer's full address \
+                (street address, city, state, and zip code) and the item in question as input. \
+                It then searches the KMT database for relevant information about how to \
+                handle, dispose of, or recycle the specified item based on the customer's location. \
+                The returned dictionary contains detailed instructions, guidelines, or policies \
+                regarding the item, which can be used to answer the customer's queries accurately and efficiently.",
     args_schema=AskKmtInput,
     
 )

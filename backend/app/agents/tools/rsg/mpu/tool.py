@@ -85,9 +85,17 @@ def handle_mpu(
 
 mpu_tool = StructuredTool.from_function(
     func=handle_mpu,
-    name="mpu_tool",
-    description="This tool is used for customer service to handle calles about mpu (Missed Pickup) issues. It checks various things like open account/site status, open containers on account and the container is actually scheduled to be pickup and there are no division level delayes. If all checks pass then creates a missed pick up case for the customer.",
-    args_schema=MpuInput,
-    
+    name="MPU Tool",
+    description= '''
+    This tool is utilized by customer service representatives at a Trash pickup and recycle company
+    It's designed for customer service representatives to handle calls about Missed Pickup (MPU) issues. The function performs a series of checks to validate and process an MPU claim. It takes the customer's full address (street address, city, state, and zip code), the type of container that was missed, and the date of the missed pickup as input. The tool then performs the following checks:
+        1. Verifies if the customer has an open and active account
+        2. Confirms the site status is active
+        3. Checks if there are open containers on the account
+        4. Validates that the specified container is actually scheduled for pickup on the given date
+        5. Checks for any division-level delays that might affect the pickup
+
+        The returned dictionary contains the results of these checks and any additional information or instructions for the customer service representative to relay to the customer using a knowledgebase document. If any check fails, the dictionary will include details about why the MPU claim cannot be processed and suggested next steps.
+    '''
 )
     
