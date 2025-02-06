@@ -21,7 +21,7 @@ class KB():
         self.kb_params = kb_params
         self.max_search_results = max_search_results
     
-    def retrieve(self, input, metaDataFilter):
+    def filter_and_retrieve(self, input, metaDataFilter):
         """Retrieve text from the knowledge base.
 
         :param input: User input text to search for in the knowledge base
@@ -40,6 +40,27 @@ class KB():
                 'vectorSearchConfiguration':{
                     'numberOfResults': self.max_search_results,
                     'filter': metaDataFilter
+                    }
+                }
+        )
+    
+    def retrieve(self, input):
+        """Retrieve text from the knowledge base.
+
+        :param input: User input text to search for in the knowledge base
+        :return: Response from the Bedrock agent runtime client
+        """
+        bedrock_agent_runtime_client = boto3.client("bedrock-agent-runtime", 
+                                                    region_name=self.region)  
+
+        return bedrock_agent_runtime_client.retrieve(
+            knowledgeBaseId=self.kb_id,
+            retrievalQuery={
+                    'text': input
+            },
+            retrievalConfiguration={
+                'vectorSearchConfiguration':{
+                    'numberOfResults': self.max_search_results
                     }
                 }
         )

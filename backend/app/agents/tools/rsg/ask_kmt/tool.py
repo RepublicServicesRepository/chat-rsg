@@ -4,7 +4,7 @@ import logging
 from app.agents.tools.base import  StructuredTool
 from langchain_core.pydantic_v1 import BaseModel, Field
 
-from app.agents.tools.rsg.common.kb_helper import retrieve_item
+from backend.app.agents.tools.rsg.ask_kmt.kb_helper import retrieve_item
 from app.agents.tools.rsg.common.utils import lookup_address
 from app.agents.tools.rsg.common.utils import DecimalEncoder
 
@@ -60,7 +60,7 @@ def ask_kmt(
 ask_kmt_tool = StructuredTool.from_function(
     func=ask_kmt,
     name="ask_kmt",
-    description="This tool is used for customer service at a Trash pickup company. Context is around if a specific item can be recycled or picked up as trash. Retrive the KMT content associated to the customer's address and the item they are asking about",
+    description="This tool is used for customer service at a Trash pickup company. Context is around if a specific item that a customer has questions about. This tool retrives the KMT content associated to the customer's address and the item questions they are asking about",
     args_schema=AskKmtInput,
     
 )

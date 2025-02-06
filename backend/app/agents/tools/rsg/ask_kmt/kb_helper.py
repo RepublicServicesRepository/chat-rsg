@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-#function to retrieve relavant conetnt from KB for a given KMT item
+#function to retrieve relavant conetnt from KB for a given KMT item info for a specific topic
 def retrieve_item(item,division_number, polygon_id,div_level_polygon_id):    
 
     max_tokens = os.environ.get("KB_MAX_TOKENS")
@@ -49,7 +49,7 @@ def retrieve_item(item,division_number, polygon_id,div_level_polygon_id):
     logger.info("KB Input: " + kb_input)
     kb_metadata_filter = get_kb_item_metadata_filter(division_number,polygon_id,div_level_polygon_id)
     
-    items = kb.retrieve(kb_input,kb_metadata_filter)
+    items = kb.filter_and_retrieve(kb_input,kb_metadata_filter)
 
     chunks = []
     for item in items["retrievalResults"]:
