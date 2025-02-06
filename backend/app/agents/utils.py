@@ -1,6 +1,6 @@
 from app.agents.tools.base import BaseTool
-from backend.app.agents.tools.rsg.ask_kmt import ask_kmt_tool
-from backend.app.agents.tools.rsg.ask_sop import ask_sop_tool
+from app.agents.tools.rsg.ask_kmt import ask_kmt_tool
+from app.agents.tools.rsg.ask_sop import ask_sop_tool
 #from app.agents.tools.rsg.mpu import mpu_tool
 
 
