@@ -5,8 +5,8 @@ from app.agents.tools.base import  StructuredTool
 from langchain_core.pydantic_v1 import BaseModel, Field
 
 from app.agents.tools.rsg.common.utils import DecimalEncoder
-from backend.app.agents.tools.rsg.mpu.mpu_actions import get_account_site, get_container
-from backend.app.agents.tools.rsg.mpu.mpu_actions import get_container_schedule,get_division_announcements
+from app.agents.tools.rsg.mpu.mpu_actions import get_account_site, get_container
+from app.agents.tools.rsg.mpu.mpu_actions import get_container_schedule,get_division_announcements
 
 # add logger
 logger = logging.getLogger(__name__)

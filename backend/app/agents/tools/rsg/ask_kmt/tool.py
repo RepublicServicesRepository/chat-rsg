@@ -4,7 +4,7 @@ import logging
 from app.agents.tools.base import  StructuredTool
 from langchain_core.pydantic_v1 import BaseModel, Field
 
-from backend.app.agents.tools.rsg.ask_kmt.kb_helper import retrieve_item
+from app.agents.tools.rsg.ask_kmt.kb_helper import retrieve_item
 from app.agents.tools.rsg.common.utils import lookup_address
 from app.agents.tools.rsg.common.utils import DecimalEncoder
 
