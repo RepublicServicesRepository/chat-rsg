@@ -1,20 +1,52 @@
 from app.agents.tools.rsg.common.kb import KB
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 #function to retrieve relavant conetnt from KB for a given KMT item
 def retrieve_item(item,division_number, polygon_id,div_level_polygon_id):    
- 
+
+    max_tokens = os.environ.get("KB_MAX_TOKENS")
+    if max_tokens is None:
+        max_tokens = 512
+    else:
+        max_tokens = int(max_tokens)
+
+    kb_temperature = os.environ.get("KB_TEMPERATURE")
+    if kb_temperature is None:
+        kb_temperature = 0.4
+    else:
+        kb_temperature = float(kb_temperature)
+
+    kb_top_p = os.environ.get("KB_TOP_P")
+    if kb_top_p is None:
+        kb_top_p = 0.98
+    else:
+        kb_top_p = float(kb_top_p)
+
+    max_search_results = os.environ.get("KB_MAX_SEARCH_RESULTS")
+    if max_search_results is None:
+        max_search_results = 10
+    else:
+        max_search_results = int(max_search_results)
+
+    #initialize the KB
     kb = KB(region=os.environ.get("KB_REGION"),
             kb_id=os.environ.get("KB_ID"),
             kb_params={
-                "maxTokens": os.environ.get("KB_MAX_TOKENS"),
-                "temperature": os.environ.get("KB_TEMPERATURE"),
-                "topP": os.environ.get("KB_TOP_P")
+                "maxTokens": max_tokens,
+                "temperature": kb_temperature,
+                "topP": kb_top_p
             },
-            max_search_results = os.environ.get("KB_MAX_SEARCH_RESULTS")
+            max_search_results = max_search_results
     )
     
+    logger.info("KB Initialized")
+
     kb_input = get_kb_item_input(item) #item is the item to be searched
+    logger.info("KB Input: " + kb_input)
     kb_metadata_filter = get_kb_item_metadata_filter(division_number,polygon_id,div_level_polygon_id)
     
     items = kb.retrieve(kb_input,kb_metadata_filter)
