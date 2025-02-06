@@ -8,33 +8,33 @@ logger.setLevel(logging.INFO)
 #function to retrieve relavant conetnt from KB for a given KMT item info for a specific topic
 def retrieve_item(item,division_number, polygon_id,div_level_polygon_id):    
 
-    max_tokens = os.environ.get("KB_MAX_TOKENS")
+    max_tokens = os.environ.get("ASK_KM_KB_MAX_TOKENS")
     if max_tokens is None:
         max_tokens = 512
     else:
         max_tokens = int(max_tokens)
 
-    kb_temperature = os.environ.get("KB_TEMPERATURE")
+    kb_temperature = os.environ.get("ASK_KM_KB_TEMPERATURE")
     if kb_temperature is None:
         kb_temperature = 0.4
     else:
         kb_temperature = float(kb_temperature)
 
-    kb_top_p = os.environ.get("KB_TOP_P")
+    kb_top_p = os.environ.get("ASK_KM_KB_TOP_P")
     if kb_top_p is None:
         kb_top_p = 0.98
     else:
         kb_top_p = float(kb_top_p)
 
-    max_search_results = os.environ.get("KB_MAX_SEARCH_RESULTS")
+    max_search_results = os.environ.get("ASK_KM_KB_MAX_SEARCH_RESULTS")
     if max_search_results is None:
         max_search_results = 10
     else:
         max_search_results = int(max_search_results)
 
     #initialize the KB
-    kb = KB(region=os.environ.get("KB_REGION"),
-            kb_id=os.environ.get("KB_ID"),
+    kb = KB(region=os.environ.get("ASK_KM_KB_REGION"),
+            kb_id=os.environ.get("ASK_KM_KB_ID"),
             kb_params={
                 "maxTokens": max_tokens,
                 "temperature": kb_temperature,
