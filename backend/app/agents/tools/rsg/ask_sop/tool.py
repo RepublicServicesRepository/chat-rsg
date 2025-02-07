@@ -48,6 +48,8 @@ ask_sop_tool = StructuredTool.from_function(
             to access Standard Operating Procedures (SOPs) related to variious customer's questions about their trash. \
             The function takes a string parameter named topic that determines the topic of hte question and another \
             string input describing the user's scenario, question, or specific situation. \
+            Some of the topics are : \
+                - mpu for missed pickup related questions \
             It then searches the company's SOP database to retrieve relevant content that addresses the given input \
             The returned dictionary contains step-by-step instructions, guidelines, or protocols \
             that the customer service representative should follow to handle the specific situation or  \

@@ -48,7 +48,9 @@ ask_jeff_tool = StructuredTool.from_function(
             answers to their questions related to a specific topic . \
             The function takes a string parameter named topic that determines the topic of hte question and another \
             string input describing the user's question or prompt \
-            It then searches the developer knowledgbase to retrieve relevant content that addresses the given input ",
+            It then searches the developer knowledgbase to retrieve relevant content that addresses the given input \
+            Some of the topics are : \
+                genesys for Genesys realted questions ",
     args_schema=AskJeffInput,
     
 )

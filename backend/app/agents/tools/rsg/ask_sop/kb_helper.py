@@ -45,7 +45,6 @@ def retrieve_sop(topic,input):
     
     logger.info("KB Initialized")
     
-    items = kb.retrieve(input)
     topic_filter = {
         "equals": {
             "key": "topic",
