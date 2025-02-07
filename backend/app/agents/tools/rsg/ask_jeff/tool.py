@@ -4,18 +4,18 @@ import logging
 from app.agents.tools.base import  StructuredTool
 from langchain_core.pydantic_v1 import BaseModel, Field
 
-from app.agents.tools.rsg.ask_sop.kb_helper import retrieve_sop
+from app.agents.tools.rsg.ask_jeff.kb_helper import retrieve_jeff
 from app.agents.tools.rsg.common.utils import DecimalEncoder
 
 # add logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class AskSopInput(BaseModel):
+class AskJeffInput(BaseModel):
     topic: str = Field(description="topic or subject of the input prompt or question")
     input: str = Field(description="user's input prompt or question")
 
-def ask_sop(
+def ask_jeff(
     input: str,
     topic: str
 ) -> dict:
@@ -29,7 +29,7 @@ def ask_sop(
     logger.info(f"Topic: {topic}")
 
     #retieve the chunks from sop
-    results = retrieve_sop(topic,input)
+    results = retrieve_jeff(topic,input)
     logger.info(f"Results: {results}")
 
     # Serialize data with Decimal values
@@ -42,17 +42,13 @@ def ask_sop(
     }
 
 ask_sop_tool = StructuredTool.from_function(
-    func=ask_sop,
-    name="AskSOP",
-    description="This tool is utilized by customer service representatives at a Trash pickup and recycle company. \
-            to access Standard Operating Procedures (SOPs) related to variious customer's questions about their trash. \
+    func=ask_jeff,
+    name="AskJeff",
+    description="This tool is utilized by software developers to access various developer documentation to procvide  \
+            answers to their questions related to a specific topic . \
             The function takes a string parameter named topic that determines the topic of hte question and another \
-            string input describing the user's scenario, question, or specific situation. \
-            It then searches the company's SOP database to retrieve relevant content that addresses the given input \
-            The returned dictionary contains step-by-step instructions, guidelines, or protocols \
-            that the customer service representative should follow to handle the specific situation or  \
-            answer the customer's question. This ensures consistency in service delivery and adherence \
-            to company policies across various customer interactions.",
-    args_schema=AskSopInput,
+            string input describing the user's question or prompt \
+            It then searches the developer knowledgbase to retrieve relevant content that addresses the given input ",
+    args_schema=AskJeffInput,
     
 )
