@@ -15,7 +15,7 @@ class AskJeffInput(BaseModel):
     topic: str = Field(description="topic or subject of the input prompt or question")
     input: str = Field(description="user's input prompt or question")
 
-def ask_jeff(
+def ask_jeff_tool(
     input: str,
     topic: str
 ) -> dict:
@@ -42,7 +42,7 @@ def ask_jeff(
     }
 
 ask_sop_tool = StructuredTool.from_function(
-    func=ask_jeff,
+    func=ask_jeff_tool,
     name="AskJeff",
     description="This tool is utilized by software developers to access various developer documentation to procvide  \
             answers to their questions related to a specific topic . \

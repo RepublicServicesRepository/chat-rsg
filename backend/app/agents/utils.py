@@ -10,7 +10,7 @@ def get_available_tools() -> list[BaseTool]:
     tools.append(ask_kmt_tool)
     tools.append(ask_sop_tool)
     tools.append(mpu_tool) 
-    tools.append(ask_jeff_tool) 
+    tools.append(ask_jeff_tool)
     return tools
 
 
