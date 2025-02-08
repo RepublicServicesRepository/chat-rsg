@@ -15,8 +15,9 @@ from app.repositories.custom_bot import find_public_bot_by_id
 
 DB_SECRETS_ARN = os.environ.get("DB_SECRETS_ARN", "")
 DOCUMENT_BUCKET = os.environ.get("DOCUMENT_BUCKET", "documents")
+BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 
-s3_client = boto3.client("s3")
+s3_client = boto3.client("s3", BEDROCK_REGION)
 
 
 def delete_from_postgres(bot_id: str):

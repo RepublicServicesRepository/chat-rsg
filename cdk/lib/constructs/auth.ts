@@ -1,4 +1,4 @@
-import { CfnOutput, Duration, Stack, CustomResource } from "aws-cdk-lib";
+import { CfnOutput, Duration, Stack, CustomResource, RemovalPolicy } from "aws-cdk-lib";
 import {
   ProviderAttribute,
   UserPool,
@@ -44,6 +44,7 @@ export class Auth extends Construct {
         username: false,
         email: true,
       },
+      removalPolicy: RemovalPolicy.DESTROY
     });
 
     const clientProps = (() => {

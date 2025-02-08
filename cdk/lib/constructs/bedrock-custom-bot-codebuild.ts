@@ -4,16 +4,16 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { NagSuppressions } from "cdk-nag";
 
-export interface BedrockKnowledgeBaseCodebuildProps {
+export interface BedrockCustomBotCodebuildProps {
   readonly sourceBucket: s3.Bucket;
 }
 
-export class BedrockKnowledgeBaseCodebuild extends Construct {
+export class BedrockCustomBotCodebuild extends Construct {
   public readonly project: codebuild.Project;
   constructor(
     scope: Construct,
     id: string,
-    props: BedrockKnowledgeBaseCodebuildProps
+    props: BedrockCustomBotCodebuildProps
   ) {
     super(scope, id);
 
@@ -35,6 +35,7 @@ export class BedrockKnowledgeBaseCodebuild extends Construct {
         },
         KNOWLEDGE: { value: "" },
         BEDROCK_KNOWLEDGE_BASE: { value: "" },
+        BEDROCK_GUARDRAILS: { value: "" },
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: "0.2",
@@ -53,7 +54,7 @@ export class BedrockKnowledgeBaseCodebuild extends Construct {
               // Extract BOT_ID from SK. Note that SK is given like <user-id>#BOT#<bot-id>
               `export BOT_ID=$(echo $SK | awk -F'#' '{print $3}')`,
               // Replace cdk's entrypoint. This is a workaround to avoid the issue that cdk synthesize all stacks.
-              "sed -i 's|bin/bedrock-chat.ts|bin/bedrock-knowledge-base.ts|' cdk.json",
+              "sed -i 's|bin/bedrock-chat.ts|bin/bedrock-custom-bot.ts|' cdk.json",
               `cdk deploy --require-approval never BrChatKbStack$BOT_ID`,
             ],
           },

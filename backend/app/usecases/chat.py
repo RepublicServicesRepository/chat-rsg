@@ -46,6 +46,7 @@ from app.vector_search import (
     filter_used_results,
     get_source_link,
     search_related_docs,
+    to_guardrails_grounding_source,
 )
 from ulid import ULID
 
@@ -311,6 +312,12 @@ def chat(user_id: str, chat_input: ChatInput) -> ChatOutput:
         if not chat_input.continue_generate:
             messages.append(MessageModel.from_message_input(chat_input.message))
 
+        # Guardrails
+        guardrail = bot.bedrock_guardrails if bot else None
+        grounding_source = None
+        if guardrail and guardrail.is_guardrail_enabled:
+            grounding_source = to_guardrails_grounding_source(search_results)
+
         # Create payload to invoke Bedrock
         args = compose_args_for_converse_api(
             messages=messages,
@@ -321,8 +328,9 @@ def chat(user_id: str, chat_input: ChatInput) -> ChatOutput:
                 else None  # type: ignore[union-attr]
             ),
             generation_params=(bot.generation_params if bot else None),
+            grounding_source=grounding_source,
+            guardrail=guardrail,
         )
-
         converse_response = call_converse_api(args)
         reply_txt = converse_response["output"]["message"]["content"][0].get("text", "")
         reply_txt = reply_txt.rstrip()
@@ -484,15 +492,13 @@ def propose_conversation_title(
     )
     messages.append(new_message)
 
-    print(f"messages: {messages}")
     # Invoke Bedrock
     args = compose_args_for_converse_api(
         messages=messages,
         model=model,
     )
-    print(f"args: {args}")
     response = call_converse_api(args)
-    reply_txt = response["output"]["message"]["content"][0]["text"]
+    reply_txt = response["output"]["message"]["content"][0].get("text", "")
 
     return reply_txt
 

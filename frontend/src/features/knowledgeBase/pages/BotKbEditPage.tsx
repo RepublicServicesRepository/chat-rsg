@@ -42,6 +42,10 @@ import {
   DEFAULT_OPENSEARCH_ANALYZER,
 } from '../constants';
 import {
+  GUARDRAILS_FILTERS_THRESHOLD,
+  GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD,
+} from '../../../constants';
+import {
   ChunkingStrategy,
   EmbeddingsModel,
   OpenSearchParams,
@@ -102,6 +106,16 @@ const BotKbEditPage: React.FC = () => {
   const [knowledgeBaseId, setKnowledgeBaseId] = useState<string | null>(null); // Send null when creating a new bot
   const [embeddingsModel, setEmbeddingsModel] =
     useState<EmbeddingsModel>('titan_v2');
+
+  const [hateThreshold, setHateThreshold] = useState<number>(0);
+  const [insultsThreshold, setInsultsThreshold] = useState<number>(0);
+  const [sexualThreshold, setSexualThreshold] = useState<number>(0);
+  const [violenceThreshold, setViolenceThreshold] = useState<number>(0);
+  const [misconductThreshold, setMisconductThreshold] = useState<number>(0);
+  const [groundingThreshold, setGroundingThreshold] = useState<number>(0);
+  const [relevanceThreshold, setRelevanceThreshold] = useState<number>(0);
+  const [guardrailArn, setGuardrailArn] = useState<string>('');
+  const [guardrailVersion, setGuardrailVersion] = useState<string>('');
 
   const embeddingsModelOptions: {
     label: string;
@@ -290,6 +304,47 @@ const BotKbEditPage: React.FC = () => {
           );
           setOpenSearchParams(bot.bedrockKnowledgeBase!.openSearch);
           setSearchParams(bot.bedrockKnowledgeBase!.searchParams);
+          setGuardrailArn(bot.bedrockGuardrails.guardrailArn);
+          setGuardrailVersion(
+            bot.bedrockGuardrails.guardrailVersion
+              ? bot.bedrockGuardrails.guardrailVersion
+              : ''
+          );
+          setHateThreshold(
+            bot.bedrockGuardrails.hateThreshold
+              ? bot.bedrockGuardrails.hateThreshold
+              : 0
+          );
+          setInsultsThreshold(
+            bot.bedrockGuardrails.insultsThreshold
+              ? bot.bedrockGuardrails.insultsThreshold
+              : 0
+          );
+          setSexualThreshold(
+            bot.bedrockGuardrails.sexualThreshold
+              ? bot.bedrockGuardrails.sexualThreshold
+              : 0
+          );
+          setViolenceThreshold(
+            bot.bedrockGuardrails.violenceThreshold
+              ? bot.bedrockGuardrails.violenceThreshold
+              : 0
+          );
+          setMisconductThreshold(
+            bot.bedrockGuardrails.misconductThreshold
+              ? bot.bedrockGuardrails.misconductThreshold
+              : 0
+          );
+          setGroundingThreshold(
+            bot.bedrockGuardrails.groundingThreshold
+              ? bot.bedrockGuardrails.groundingThreshold
+              : 0
+          );
+          setRelevanceThreshold(
+            bot.bedrockGuardrails.relevanceThreshold
+              ? bot.bedrockGuardrails.relevanceThreshold
+              : 0
+          );
         })
         .finally(() => {
           setIsLoading(false);
@@ -510,7 +565,7 @@ const BotKbEditPage: React.FC = () => {
 
     // S3 URLs validation - s3://example-bucket/path/to/data-source/
     const isS3UrlsValid = s3Urls.every((url, idx) => {
-      if (url && !/^s3:\/\/[a-z0-9.-]+\/$/.test(url)) {
+      if (url && !/^s3:\/\/[a-z0-9.-]+\/.+/.test(url)) {
         setErrorMessages(`s3Urls-${idx}`, 'S3 URL is invalid');
         return false;
       } else {
@@ -673,6 +728,25 @@ const BotKbEditPage: React.FC = () => {
         openSearch: openSearchParams,
         searchParams: searchParams,
       },
+      bedrockGuardrails: {
+        isGuardrailEnabled:
+          hateThreshold > 0 ||
+          insultsThreshold > 0 ||
+          sexualThreshold > 0 ||
+          violenceThreshold > 0 ||
+          misconductThreshold > 0 ||
+          groundingThreshold > 0 ||
+          relevanceThreshold > 0,
+        hateThreshold: hateThreshold,
+        insultsThreshold: insultsThreshold,
+        sexualThreshold: sexualThreshold,
+        violenceThreshold: violenceThreshold,
+        misconductThreshold: misconductThreshold,
+        groundingThreshold: groundingThreshold,
+        relevanceThreshold: relevanceThreshold,
+        guardrailArn: '',
+        guardrailVersion: '',
+      },
     })
       .then(() => {
         navigate('/bot/explore');
@@ -706,6 +780,13 @@ const BotKbEditPage: React.FC = () => {
     chunkingMaxTokens,
     chunkingOverlapPercentage,
     openSearchParams,
+    hateThreshold,
+    insultsThreshold,
+    sexualThreshold,
+    violenceThreshold,
+    misconductThreshold,
+    groundingThreshold,
+    relevanceThreshold,
   ]);
 
   const onClickEdit = useCallback(() => {
@@ -757,6 +838,25 @@ const BotKbEditPage: React.FC = () => {
           openSearch: openSearchParams,
           searchParams: searchParams,
         },
+        bedrockGuardrails: {
+          isGuardrailEnabled:
+            hateThreshold > 0 ||
+            insultsThreshold > 0 ||
+            sexualThreshold > 0 ||
+            violenceThreshold > 0 ||
+            misconductThreshold > 0 ||
+            groundingThreshold > 0 ||
+            relevanceThreshold > 0,
+          hateThreshold: hateThreshold,
+          insultsThreshold: insultsThreshold,
+          sexualThreshold: sexualThreshold,
+          violenceThreshold: violenceThreshold,
+          misconductThreshold: misconductThreshold,
+          groundingThreshold: groundingThreshold,
+          relevanceThreshold: relevanceThreshold,
+          guardrailArn: guardrailArn,
+          guardrailVersion: guardrailVersion,
+        },
       })
         .then(() => {
           navigate('/bot/explore');
@@ -794,6 +894,15 @@ const BotKbEditPage: React.FC = () => {
     chunkingMaxTokens,
     chunkingOverlapPercentage,
     openSearchParams,
+    hateThreshold,
+    insultsThreshold,
+    sexualThreshold,
+    violenceThreshold,
+    misconductThreshold,
+    groundingThreshold,
+    relevanceThreshold,
+    guardrailArn,
+    guardrailVersion,
   ]);
 
   const [isOpenSamples, setIsOpenSamples] = useState(false);
@@ -1265,6 +1374,145 @@ const BotKbEditPage: React.FC = () => {
                           }) as SearchParams
                       );
                     }}
+                  />
+                </div>
+              </ExpandableDrawerGroup>
+
+              <ExpandableDrawerGroup
+                isDefaultShow={false}
+                label={t('guardrails.harmfulCategories.label')}
+                className="py-2">
+                <div className="mt-2">
+                  <Slider
+                    value={hateThreshold}
+                    hint={t('guardrails.harmfulCategories.hate.hint')}
+                    label={t('guardrails.harmfulCategories.hate.label')}
+                    range={{
+                      min: GUARDRAILS_FILTERS_THRESHOLD.MIN,
+                      max: GUARDRAILS_FILTERS_THRESHOLD.MAX,
+                      step: GUARDRAILS_FILTERS_THRESHOLD.STEP,
+                    }}
+                    onChange={(hateThreshold) => {
+                      setHateThreshold(hateThreshold);
+                    }}
+                    enableDecimal={true}
+                    errorMessage={errorMessages['hateThreshold']}
+                  />
+                </div>
+                <div className="mt-2">
+                  <Slider
+                    value={insultsThreshold}
+                    hint={t('guardrails.harmfulCategories.insults.hint')}
+                    label={t('guardrails.harmfulCategories.insults.label')}
+                    range={{
+                      min: GUARDRAILS_FILTERS_THRESHOLD.MIN,
+                      max: GUARDRAILS_FILTERS_THRESHOLD.MAX,
+                      step: GUARDRAILS_FILTERS_THRESHOLD.STEP,
+                    }}
+                    onChange={(insultsThreshold) => {
+                      setInsultsThreshold(insultsThreshold);
+                    }}
+                    enableDecimal={true}
+                    errorMessage={errorMessages['insultsThreshold']}
+                  />
+                </div>
+                <div className="mt-2">
+                  <Slider
+                    value={sexualThreshold}
+                    hint={t('guardrails.harmfulCategories.sexual.hint')}
+                    label={t('guardrails.harmfulCategories.sexual.label')}
+                    range={{
+                      min: GUARDRAILS_FILTERS_THRESHOLD.MIN,
+                      max: GUARDRAILS_FILTERS_THRESHOLD.MAX,
+                      step: GUARDRAILS_FILTERS_THRESHOLD.STEP,
+                    }}
+                    onChange={(sexualThreshold) => {
+                      setSexualThreshold(sexualThreshold);
+                    }}
+                    enableDecimal={true}
+                    errorMessage={errorMessages['sexualThreshold']}
+                  />
+                </div>
+                <div className="mt-2">
+                  <Slider
+                    value={violenceThreshold}
+                    hint={t('guardrails.harmfulCategories.violence.hint')}
+                    label={t('guardrails.harmfulCategories.violence.label')}
+                    range={{
+                      min: GUARDRAILS_FILTERS_THRESHOLD.MIN,
+                      max: GUARDRAILS_FILTERS_THRESHOLD.MAX,
+                      step: GUARDRAILS_FILTERS_THRESHOLD.STEP,
+                    }}
+                    onChange={(violenceThreshold) => {
+                      setViolenceThreshold(violenceThreshold);
+                    }}
+                    enableDecimal={true}
+                    errorMessage={errorMessages['violenceThreshold']}
+                  />
+                </div>
+                <div className="mt-2">
+                  <Slider
+                    value={misconductThreshold}
+                    hint={t('guardrails.harmfulCategories.misconduct.hint')}
+                    label={t('guardrails.harmfulCategories.misconduct.label')}
+                    range={{
+                      min: GUARDRAILS_FILTERS_THRESHOLD.MIN,
+                      max: GUARDRAILS_FILTERS_THRESHOLD.MAX,
+                      step: GUARDRAILS_FILTERS_THRESHOLD.STEP,
+                    }}
+                    onChange={(misconductThreshold) => {
+                      setMisconductThreshold(misconductThreshold);
+                    }}
+                    enableDecimal={true}
+                    errorMessage={errorMessages['misconductThreshold']}
+                  />
+                </div>
+              </ExpandableDrawerGroup>
+
+              <ExpandableDrawerGroup
+                isDefaultShow={false}
+                label={t('guardrails.contextualGroundingCheck.label')}
+                className="py-2">
+                <div className="mt-2">
+                  <Slider
+                    value={groundingThreshold}
+                    hint={t(
+                      'guardrails.contextualGroundingCheck.groundingThreshold.hint'
+                    )}
+                    label={t(
+                      'guardrails.contextualGroundingCheck.groundingThreshold.label'
+                    )}
+                    range={{
+                      min: GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD.MIN,
+                      max: GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD.MAX,
+                      step: GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD.STEP,
+                    }}
+                    onChange={(groundingThreshold) => {
+                      setGroundingThreshold(groundingThreshold);
+                    }}
+                    enableDecimal={true}
+                    errorMessage={errorMessages['groundingThreshold']}
+                  />
+                </div>
+                <div className="mt-2">
+                  <Slider
+                    value={relevanceThreshold}
+                    hint={t(
+                      'guardrails.contextualGroundingCheck.relevanceThreshold.hint'
+                    )}
+                    label={t(
+                      'guardrails.contextualGroundingCheck.relevanceThreshold.label'
+                    )}
+                    range={{
+                      min: GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD.MIN,
+                      max: GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD.MAX,
+                      step: GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD.STEP,
+                    }}
+                    onChange={(relevanceThreshold) => {
+                      setRelevanceThreshold(relevanceThreshold);
+                    }}
+                    enableDecimal={true}
+                    errorMessage={errorMessages['relevanceThreshold']}
                   />
                 </div>
               </ExpandableDrawerGroup>

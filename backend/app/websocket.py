@@ -11,7 +11,11 @@ from app.agents.agent import OnStopInput as AgentOnStopInput
 from app.agents.tools.knowledge import create_knowledge_tool
 from app.agents.utils import get_tool_by_name
 from app.auth import verify_token
-from app.bedrock import ConverseApiToolResult, compose_args_for_converse_api
+from app.bedrock import (
+    ConverseApiRequest,
+    ConverseApiToolResult,
+    compose_args_for_converse_api,
+)
 from app.repositories.conversation import RecordNotFoundError, store_conversation
 from app.repositories.models.conversation import (
     AgentToolUseContentModel,
@@ -26,7 +30,12 @@ from app.stream import ConverseApiStreamHandler, OnStopInput
 from app.usecases.bot import modify_bot_last_used_time
 from app.usecases.chat import insert_knowledge, prepare_conversation, trace_to_root
 from app.utils import get_current_time
-from app.vector_search import filter_used_results, get_source_link, search_related_docs
+from app.vector_search import (
+    filter_used_results,
+    get_source_link,
+    search_related_docs,
+    to_guardrails_grounding_source,
+)
 from boto3.dynamodb.conditions import Attr, Key
 from ulid import ULID
 
@@ -282,16 +291,23 @@ def process_chat_input(
     if not chat_input.continue_generate:
         messages.append(chat_input.message)  # type: ignore
 
+    # Guardrails
+    guardrail = bot.bedrock_guardrails if bot else None
+    grounding_source = None
+    if guardrail and guardrail.is_guardrail_enabled:
+        grounding_source = to_guardrails_grounding_source(search_results)
+
     args = compose_args_for_converse_api(
-        messages,
-        chat_input.message.model,
+        messages=messages,
+        model=chat_input.message.model,
         instruction=(
-            message_map["instruction"].content[0].body  # type: ignore[union-attr]
+            message_map["instruction"].content[0].body
             if "instruction" in message_map
-            else None
+            else None  # type: ignore[union-attr]
         ),
-        stream=True,
         generation_params=(bot.generation_params if bot else None),
+        grounding_source=grounding_source,
+        guardrail=guardrail,
     )
 
     stream_handler = ConverseApiStreamHandler(

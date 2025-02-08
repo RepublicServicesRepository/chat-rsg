@@ -7,7 +7,8 @@ import {
   getChunkingStrategy,
   getAnalyzer,
 } from "../lib/utils/bedrock-knowledge-base-args";
-import { BedrockKnowledgeBaseStack } from "../lib/bedrock-knowledge-base-stack";
+import { BedrockCustomBotStack } from "../lib/bedrock-custom-bot-stack";
+import { BedrockRegionResourcesStack } from "../lib/bedrock-region-resources";
 import { Analyzer } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/opensearch-vectorindex";
 
 describe("Bedrock Chat Stack Test", () => {
@@ -16,10 +17,20 @@ describe("Bedrock Chat Stack Test", () => {
 
     const domainPrefix = "test-domain";
 
+    const bedrockRegionResourcesStack = new BedrockRegionResourcesStack(app, "BedrockRegionResourcesStack", {
+      env: {
+        region: "us-east-1",
+      },
+      crossRegionReferences: true,
+    })
+
     const hasGoogleProviderStack = new BedrockChatStack(
       app,
       "IdentityProviderGenerateStack",
       {
+        env: {
+          region: "us-west-2",
+        },
         bedrockRegion: "us-east-1",
         crossRegionReferences: true,
         webAclId: "",
@@ -45,6 +56,7 @@ describe("Bedrock Chat Stack Test", () => {
         embeddingContainerMemory: 2048,
         natgatewayCount: 2,
         enableIpV6: true,
+        documentBucket: bedrockRegionResourcesStack.documentBucket,
       }
     );
     const hasGoogleProviderTemplate = Template.fromStack(
@@ -75,10 +87,21 @@ describe("Bedrock Chat Stack Test", () => {
   test("Custom OIDC Provider Generation", () => {
     const app = new cdk.App();
     const domainPrefix = "test-domain";
+
+    const bedrockRegionResourcesStack = new BedrockRegionResourcesStack(app, "BedrockRegionResourcesStack", {
+      env: {
+        region: "us-east-1",
+      },
+      crossRegionReferences: true,
+    })
+
     const hasOidcProviderStack = new BedrockChatStack(
       app,
       "OidcProviderGenerateStack",
       {
+        env: {
+          region: "us-west-2",
+        },
         bedrockRegion: "us-east-1",
         crossRegionReferences: true,
         webAclId: "",
@@ -105,6 +128,7 @@ describe("Bedrock Chat Stack Test", () => {
         embeddingContainerMemory: 2048,
         natgatewayCount: 2,
         enableIpV6: true,
+        documentBucket: bedrockRegionResourcesStack.documentBucket,
       }
     );
     const hasOidcProviderTemplate = Template.fromStack(hasOidcProviderStack);
@@ -135,7 +159,17 @@ describe("Bedrock Chat Stack Test", () => {
     // Security check
     cdk.Aspects.of(app).add(new AwsPrototypingChecks());
 
+    const bedrockRegionResourcesStack = new BedrockRegionResourcesStack(app, "BedrockRegionResourcesStack", {
+      env: {
+        region: "us-east-1",
+      },
+      crossRegionReferences: true,
+    })
+
     const stack = new BedrockChatStack(app, "MyTestStack", {
+      env: {
+        region: "us-west-2",
+      },
       bedrockRegion: "us-east-1",
       crossRegionReferences: true,
       webAclId: "",
@@ -156,6 +190,7 @@ describe("Bedrock Chat Stack Test", () => {
       embeddingContainerMemory: 2048,
       natgatewayCount: 2,
       enableIpV6: true,
+      documentBucket: bedrockRegionResourcesStack.documentBucket,
     });
     const template = Template.fromStack(stack);
 
@@ -173,7 +208,17 @@ describe("Scheduler Test", () => {
   test("has schedules", () => {
     const app = new cdk.App();
 
+    const bedrockRegionResourcesStack = new BedrockRegionResourcesStack(app, "BedrockRegionResourcesStack", {
+      env: {
+        region: "us-east-1",
+      },
+      crossRegionReferences: true,
+    })
+
     const hasScheduleStack = new BedrockChatStack(app, "HasSchedulesStack", {
+      env: {
+        region: "us-west-2",
+      },
       bedrockRegion: "us-east-1",
       crossRegionReferences: true,
       webAclId: "",
@@ -206,6 +251,7 @@ describe("Scheduler Test", () => {
       embeddingContainerMemory: 2048,
       natgatewayCount: 2,
       enableIpV6: true,
+      documentBucket: bedrockRegionResourcesStack.documentBucket,
     });
     const template = Template.fromStack(hasScheduleStack);
     template.hasResourceProperties("AWS::Scheduler::Schedule", {
@@ -218,7 +264,18 @@ describe("Scheduler Test", () => {
   });
   test("has'nt schedules", () => {
     const app = new cdk.App();
+
+    const bedrockRegionResourcesStack = new BedrockRegionResourcesStack(app, "BedrockRegionResourcesStack", {
+      env: {
+        region: "us-east-1",
+      },
+      crossRegionReferences: true,
+    })
+
     const defaultStack = new BedrockChatStack(app, "DefaultStack", {
+      env: {
+        region: "us-west-2",
+      },
       bedrockRegion: "us-east-1",
       crossRegionReferences: true,
       webAclId: "",
@@ -239,6 +296,7 @@ describe("Scheduler Test", () => {
       embeddingContainerMemory: 2048,
       natgatewayCount: 2,
       enableIpV6: true,
+      documentBucket: bedrockRegionResourcesStack.documentBucket,
     });
     const template = Template.fromStack(defaultStack);
     // The stack should have only 1 rule for exporting the data from ddb to s3
@@ -354,9 +412,9 @@ describe("Bedrock Knowledge Base Stack", () => {
         ? Number(knowledgeBase.overlap_percentage.N)
         : undefined;
 
-    const stack = new BedrockKnowledgeBaseStack(
+    const stack = new BedrockCustomBotStack(
       app,
-      "BedrockKnowledgeBaseStack",
+      "BedrockCustomBotStackStack",
       {
         ownerUserId,
         botId,

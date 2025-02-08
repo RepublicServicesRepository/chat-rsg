@@ -110,6 +110,7 @@ class TestAgentRunner(unittest.TestCase):
             published_api_codebuild_id=None,
             conversation_quick_starters=[],
             bedrock_knowledge_base=None,
+            bedrock_guardrails=None,
         )
         tools = [internet_search_tool]
         model = "claude-v3-sonnet"

@@ -1,15 +1,22 @@
 import json
 import logging
 import os
-import re
 from datetime import datetime
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 import boto3
 import pg8000
 from aws_lambda_powertools.utilities import parameters
 from botocore.client import Config
 from botocore.exceptions import ClientError
+from boto3.dynamodb.conditions import Key
+from app.repositories.common import (
+    _get_table_client,
+    _get_table_public_client,
+    compose_bot_id,
+    RecordNotFoundError,
+)
+from app.repositories.models.custom_bot_guardrails import BedrockGuardrailsModel
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +48,16 @@ def is_running_on_lambda():
 
 
 def get_bedrock_client(region=BEDROCK_REGION):
+    client = boto3.client("bedrock", region)
+    return client
+
+
+def get_bedrock_runtime_client(region=BEDROCK_REGION):
     client = boto3.client("bedrock-runtime", region)
     return client
 
 
-def get_bedrock_agent_client(region=REGION):
+def get_bedrock_agent_client(region=BEDROCK_REGION):
     client = boto3.client("bedrock-agent-runtime", region)
     return client
 
@@ -65,7 +77,7 @@ def generate_presigned_url(
     # See: https://github.com/boto/boto3/issues/421#issuecomment-1849066655
     client = boto3.client(
         "s3",
-        region_name=REGION,
+        region_name=BEDROCK_REGION,
         config=Config(signature_version="v4", s3={"addressing_style": "path"}),
     )
     params = {"Bucket": bucket, "Key": key}
@@ -101,7 +113,7 @@ def compose_upload_document_s3_path(user_id: str, bot_id: str, filename: str) ->
 
 
 def delete_file_from_s3(bucket: str, key: str):
-    client = boto3.client("s3")
+    client = boto3.client("s3", BEDROCK_REGION)
 
     # Check if the file exists
     try:
@@ -118,7 +130,7 @@ def delete_file_from_s3(bucket: str, key: str):
 
 def delete_files_with_prefix_from_s3(bucket: str, prefix: str):
     """Delete all objects with the given prefix from the given bucket."""
-    client = boto3.client("s3")
+    client = boto3.client("s3", BEDROCK_REGION)
     response = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
 
     if "Contents" not in response:
@@ -129,7 +141,7 @@ def delete_files_with_prefix_from_s3(bucket: str, prefix: str):
 
 
 def check_if_file_exists_in_s3(bucket: str, key: str):
-    client = boto3.client("s3")
+    client = boto3.client("s3", BEDROCK_REGION)
 
     # Check if the file exists
     try:
@@ -144,7 +156,7 @@ def check_if_file_exists_in_s3(bucket: str, key: str):
 
 
 def move_file_in_s3(bucket: str, key: str, new_key: str):
-    client = boto3.client("s3")
+    client = boto3.client("s3", BEDROCK_REGION)
 
     # Check if the file exists
     try:

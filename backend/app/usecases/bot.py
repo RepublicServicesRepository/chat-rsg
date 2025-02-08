@@ -38,6 +38,7 @@ from app.repositories.models.custom_bot import (
     SearchParamsModel,
 )
 from app.repositories.models.custom_bot_kb import BedrockKnowledgeBaseModel
+from app.repositories.models.custom_bot_guardrails import BedrockGuardrailsModel
 from app.routes.schemas.bot import (
     Agent,
     AgentTool,
@@ -54,6 +55,7 @@ from app.routes.schemas.bot import (
     type_sync_status,
 )
 from app.routes.schemas.bot_kb import BedrockKnowledgeBaseOutput
+from app.routes.schemas.bot_guardrails import BedrockGuardrailsOutput
 from app.utils import (
     compose_upload_document_s3_path,
     compose_upload_temp_s3_path,
@@ -106,7 +108,14 @@ def create_new_bot(user_id: str, bot_input: BotInput) -> BotOutput:
         or len(bot_input.knowledge.filenames) > 0
         or len(bot_input.knowledge.s3_urls) > 0
     )
-    sync_status: type_sync_status = "QUEUED" if has_knowledge else "SUCCEEDED"
+
+    has_guardrails = (
+        bot_input.bedrock_guardrails
+        and bot_input.bedrock_guardrails.is_guardrail_enabled == True
+    )
+    sync_status: type_sync_status = (
+        "QUEUED" if has_knowledge or has_guardrails else "SUCCEEDED"
+    )
 
     source_urls = []
     sitemap_urls = []
@@ -221,6 +230,11 @@ def create_new_bot(user_id: str, bot_input: BotInput) -> BotOutput:
                 if bot_input.bedrock_knowledge_base
                 else None
             ),
+            bedrock_guardrails=(
+                BedrockGuardrailsModel(**(bot_input.bedrock_guardrails.model_dump()))
+                if bot_input.bedrock_guardrails
+                else None
+            ),
         ),
     )
     return BotOutput(
@@ -272,6 +286,11 @@ def create_new_bot(user_id: str, bot_input: BotInput) -> BotOutput:
                 **(bot_input.bedrock_knowledge_base.model_dump())
             )
             if bot_input.bedrock_knowledge_base
+            else None
+        ),
+        bedrock_guardrails=(
+            BedrockGuardrailsOutput(**(bot_input.bedrock_guardrails.model_dump()))
+            if bot_input.bedrock_guardrails
             else None
         ),
     )
@@ -357,7 +376,12 @@ def modify_owned_bot(
     # 'sync_status = "QUEUED"' will execute embeding process and update dynamodb record.
     # 'sync_status= "SUCCEEDED"' will update only dynamodb record.
     bot = find_private_bot_by_id(user_id, bot_id)
-    sync_status = "QUEUED" if modify_input.is_embedding_required(bot) else "SUCCEEDED"
+    sync_status = (
+        "QUEUED"
+        if modify_input.is_embedding_required(bot)
+        or modify_input.guardrails_update_required(bot)
+        else "SUCCEEDED"
+    )
 
     update_bot(
         user_id,
@@ -398,6 +422,11 @@ def modify_owned_bot(
                 **modify_input.bedrock_knowledge_base.model_dump()
             )
             if modify_input.bedrock_knowledge_base
+            else None
+        ),
+        bedrock_guardrails=(
+            BedrockGuardrailsModel(**modify_input.bedrock_guardrails.model_dump())
+            if modify_input.bedrock_guardrails
             else None
         ),
     )
@@ -442,6 +471,11 @@ def modify_owned_bot(
                 **(modify_input.bedrock_knowledge_base.model_dump())
             )
             if modify_input.bedrock_knowledge_base
+            else None
+        ),
+        bedrock_guardrails=(
+            BedrockGuardrailsOutput(**modify_input.bedrock_guardrails.model_dump())
+            if modify_input.bedrock_guardrails
             else None
         ),
     )

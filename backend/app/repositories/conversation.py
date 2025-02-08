@@ -27,10 +27,12 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-s3_client = boto3.client("s3")
 
 THRESHOLD_LARGE_MESSAGE = 300 * 1024  # 300KB
 LARGE_MESSAGE_BUCKET = os.environ.get("LARGE_MESSAGE_BUCKET")
+
+BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
+s3_client = boto3.client("s3", BEDROCK_REGION)
 
 
 def store_conversation(

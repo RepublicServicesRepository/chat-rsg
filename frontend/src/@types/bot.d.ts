@@ -62,6 +62,19 @@ export type SearchParams = {
   maxResults: number;
 };
 
+export type GuardrailsParams = {
+  isGuardrailEnabled: boolean;
+  hateThreshold: number;
+  insultsThreshold: number;
+  sexualThreshold: number;
+  violenceThreshold: number;
+  misconductThreshold: number;
+  groundingThreshold: number;
+  relevanceThreshold: number;
+  guardrailArn: string
+  guardrailVersion: string
+};
+
 export type BotDetails = BotMeta & {
   instruction: string;
   embeddingParams: EmdeddingParams;
@@ -72,6 +85,7 @@ export type BotDetails = BotMeta & {
   syncStatusReason: string;
   displayRetrievedChunks: boolean;
   conversationQuickStarters: ConversationQuickStarter[];
+  bedrockGuardrails: GuardrailsParams;
   bedrockKnowledgeBase: BedrockKnowledgeBase | null;
 };
 
@@ -101,6 +115,7 @@ export type RegisterBotRequest = {
   knowledge?: BotKnowledge;
   displayRetrievedChunks: boolean;
   conversationQuickStarters: ConversationQuickStarter[];
+  bedrockGuardrails?: GuardrailsParams;
   bedrockKnowledgeBase?: BedrockKnowledgeBase;
 };
 
@@ -117,6 +132,7 @@ export type UpdateBotRequest = {
   knowledge?: BotKnowledgeDiff;
   displayRetrievedChunks: boolean;
   conversationQuickStarters: ConversationQuickStarter[];
+  bedrockGuardrails?: GuardrailsParams;
   bedrockKnowledgeBase?: BedrockKnowledgeBase;
 };
 

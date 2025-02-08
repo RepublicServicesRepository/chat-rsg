@@ -7,6 +7,7 @@ from app.config import DEFAULT_EMBEDDING_CONFIG
 from app.repositories.models.custom_bot import (
     AgentModel,
     AgentToolModel,
+    BedrockGuardrailsModel,
     BedrockKnowledgeBaseModel,
     BotAliasModel,
     BotModel,
@@ -31,6 +32,7 @@ def create_test_private_bot(
     display_retrieved_chunks: bool = True,
     conversation_quick_starters: list[ConversationQuickStarterModel] | None = None,
     bedrock_knowledge_base: BedrockKnowledgeBaseModel | None = None,
+    bedrock_guardrails: BedrockGuardrailsModel | None = None,
 ):
     return BotModel(
         id=id,
@@ -80,6 +82,7 @@ def create_test_private_bot(
             [] if conversation_quick_starters is None else conversation_quick_starters
         ),
         bedrock_knowledge_base=bedrock_knowledge_base,
+        bedrock_guardrails=bedrock_guardrails,
     )
 
 
@@ -91,6 +94,7 @@ def create_test_public_bot(
     instruction="Test Public Bot Prompt",
     conversation_quick_starters: list[ConversationQuickStarterModel] | None = None,
     bedrock_knowledge_base: BedrockKnowledgeBaseModel | None = None,
+    bedrock_guardrails: BedrockGuardrailsModel | None = None,
 ):
     return BotModel(
         id=id,
@@ -140,4 +144,5 @@ def create_test_public_bot(
             conversation_quick_starters if conversation_quick_starters else []
         ),
         bedrock_knowledge_base=bedrock_knowledge_base,
+        bedrock_guardrails=bedrock_guardrails,
     )

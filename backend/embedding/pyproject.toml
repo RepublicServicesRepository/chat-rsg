@@ -3,7 +3,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"
-boto3 = "^1.28.57"
+boto3 = "^1.35.9"
 llama-index = "^0.10.19"
 pydantic = "^2.4.0"
 youtube-transcript-api = "^0.6.1"

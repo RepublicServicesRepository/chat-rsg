@@ -3,10 +3,11 @@ from typing import Any, Callable
 
 from app.bedrock import ConverseApiRequest, calculate_price, get_model_id
 from app.routes.schemas.conversation import type_model_name
-from app.utils import get_bedrock_client
+from app.utils import get_bedrock_runtime_client
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class OnStopInput(BaseModel):
@@ -51,29 +52,41 @@ class ConverseApiStreamHandler:
         return self
 
     def run(self, args: ConverseApiRequest):
-        print("args", args)
-        client = get_bedrock_client()
-        response = client.converse_stream(
-            modelId=args["model_id"],
-            messages=args["messages"],
-            inferenceConfig=args["inference_config"],
-            system=args["system"],
-        )
+        client = get_bedrock_runtime_client()
+        response = None
+        try:
+            base_args = {
+                "modelId": args["model_id"],
+                "messages": args["messages"],
+                "inferenceConfig": args["inference_config"],
+                "system": args["system"],
+                # for topK
+                "additionalModelRequestFields": args["additional_model_request_fields"],
+            }
+
+            if "guardrailConfig" in args:
+                base_args["guardrailConfig"] = args["guardrailConfig"]  # type: ignore
+
+            logger.info(f"args for converse_stream: {args}")
+            response = client.converse_stream(**base_args)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            raise e
 
         completions = []
         stop_reason = ""
         for event in response["stream"]:
             if "contentBlockDelta" in event:
-                print(f"event: {event}")
+                logger.debug(f"event: {event}")
                 text = event["contentBlockDelta"]["delta"]["text"]
                 completions.append(text)
                 response = self.on_stream(text)
                 yield response
             elif "messageStop" in event:
-                print(f"event: {event}")
+                logger.debug(f"event: {event}")
                 stop_reason = event["messageStop"]["stopReason"]
             elif "metadata" in event:
-                print(f"event: {event}")
+                logger.debug(f"event: {event}")
                 metadata = event["metadata"]
                 usage = metadata["usage"]
                 input_token_count = usage["inputTokens"]
@@ -91,4 +104,5 @@ class ConverseApiStreamHandler:
                         price=price,
                     )
                 )
+                logger.info(f"event of converse_stream: {event}")
                 yield response

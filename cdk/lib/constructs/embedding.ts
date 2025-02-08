@@ -33,7 +33,7 @@ export interface EmbeddingProps {
   readonly documentBucket: IBucket;
   readonly embeddingContainerVcpu: number;
   readonly embeddingContainerMemory: number;
-  readonly bedrockKnowledgeBaseProject: codebuild.IProject;
+  readonly bedrockCustomBotProject: codebuild.IProject;
 }
 
 export class Embedding extends Construct {
@@ -44,6 +44,7 @@ export class Embedding extends Construct {
   private _updateSyncStatusHandler: IFunction;
   private _fetchStackOutputHandler: IFunction;
   private _StoreKnowledgeBaseIdHandler: IFunction;
+  private _StoreGuardrailArnHandler: IFunction;
   private _taskDefinition: ecs.FargateTaskDefinition;
   private _pipeRole: iam.Role;
   private _stateMachine: sfn.StateMachine;
@@ -247,6 +248,9 @@ export class Embedding extends Construct {
         memorySize: 512,
         timeout: Duration.minutes(1),
         role: handlerRole,
+        environment: {
+          BEDROCK_REGION: props.bedrockRegion,
+        },
       }
     );
     this._StoreKnowledgeBaseIdHandler = new DockerImageFunction(
@@ -260,6 +264,34 @@ export class Embedding extends Construct {
             file: "lambda.Dockerfile",
             cmd: [
               "embedding_statemachine.bedrock_knowledge_base.store_knowledge_base_id.handler",
+            ],
+            exclude: [
+              ...excludeDockerImage
+            ]
+          }
+        ),
+        memorySize: 512,
+        timeout: Duration.minutes(1),
+        environment: {
+          ACCOUNT: Stack.of(this).account,
+          REGION: Stack.of(this).region,
+          TABLE_NAME: props.database.tableName,
+          TABLE_ACCESS_ROLE_ARN: props.tableAccessRole.roleArn,
+        },
+        role: handlerRole,
+      }
+    );
+    this._StoreGuardrailArnHandler = new DockerImageFunction(
+      this,
+      "StoreGuardrailArnHandler",
+      {
+        code: DockerImageCode.fromImageAsset(
+          path.join(__dirname, "../../../backend"),
+          {
+            platform: Platform.LINUX_AMD64,
+            file: "lambda.Dockerfile",
+            cmd: [
+              "embedding_statemachine.guardrails.store_guardrail_arn.handler",
             ],
             exclude: [
               ...excludeDockerImage
@@ -328,11 +360,11 @@ export class Embedding extends Construct {
       },
     });
 
-    const startKnowledgeBaseBuild = new tasks.CodeBuildStartBuild(
+    const startCustomBotBuild = new tasks.CodeBuildStartBuild(
       this,
-      "StartKnowledgeBaseBuild",
+      "StartCustomBotBuild",
       {
-        project: props.bedrockKnowledgeBaseProject,
+        project: props.bedrockCustomBotProject,
         integrationPattern: sfn.IntegrationPattern.RUN_JOB,
         environmentVariablesOverride: {
           PK: {
@@ -362,6 +394,12 @@ export class Embedding extends Construct {
               "States.JsonToString($.dynamodb.NewImage.BedrockKnowledgeBase.M)"
             ),
           },
+          BEDROCK_GUARDRAILS: {
+            type: codebuild.BuildEnvironmentVariableType.PLAINTEXT,
+            value: sfn.JsonPath.stringAt(
+              "States.JsonToString($.dynamodb.NewImage.GuardrailsParams.M)"
+            ),
+          }
         },
         resultPath: "$.Build",
       }
@@ -396,7 +434,7 @@ export class Embedding extends Construct {
         error: "Knowledge base sync failed",
       })
     );
-    startKnowledgeBaseBuild.addCatch(fallback);
+    startCustomBotBuild.addCatch(fallback);
 
     const fetchStackOutput = new tasks.LambdaInvoke(this, "FetchStackOutput", {
       lambdaFunction: this._fetchStackOutputHandler,
@@ -423,20 +461,36 @@ export class Embedding extends Construct {
     );
     storeKnowledgeBaseId.addCatch(fallback);
 
-    const startIngestionJob = new tasks.CallAwsService(
+    const storeGuardrailArn = new tasks.LambdaInvoke(
+      this,
+      "StoreGuardrailArn",
+      {
+        lambdaFunction: this._StoreGuardrailArnHandler,
+        payload: sfn.TaskInput.fromObject({
+          "pk.$": "$.dynamodb.NewImage.PK.S",
+          "sk.$": "$.dynamodb.NewImage.SK.S",
+          "stack_output.$": "$.StackOutput.Payload",
+        }),
+        resultPath: sfn.JsonPath.DISCARD,
+      }
+    );
+    storeGuardrailArn.addCatch(fallback);
+
+    const startIngestionJob = new tasks.CallAwsServiceCrossRegion(
       this,
       "StartIngestionJob",
       {
-        service: "bedrockagent",
+        service: "bedrock-agent",
         action: "startIngestionJob",
         iamAction: "bedrock:StartIngestionJob",
+        region: props.bedrockRegion,
         parameters: {
-          DataSourceId: sfn.JsonPath.stringAt("$.DataSourceId"),
-          KnowledgeBaseId: sfn.JsonPath.stringAt("$.KnowledgeBaseId"),
+          dataSourceId: sfn.JsonPath.stringAt("$.DataSourceId"),
+          knowledgeBaseId: sfn.JsonPath.stringAt("$.KnowledgeBaseId"),
         },
         // Ref: https://docs.aws.amazon.com/ja_jp/service-authorization/latest/reference/list_amazonbedrock.html#amazonbedrock-knowledge-base
         iamResources: [
-          `arn:${Stack.of(this).partition}:bedrock:${Stack.of(this).region}:${
+          `arn:${Stack.of(this).partition}:bedrock:${props.bedrockRegion}:${
             Stack.of(this).account
           }:knowledge-base/*`,
         ],
@@ -444,24 +498,25 @@ export class Embedding extends Construct {
       }
     );
 
-    const getIngestionJob = new tasks.CallAwsService(this, "GetIngestionJob", {
-      service: "bedrockagent",
+    const getIngestionJob = new tasks.CallAwsServiceCrossRegion(this, "GetIngestionJob", {
+      service: "bedrock-agent",
       action: "getIngestionJob",
       iamAction: "bedrock:GetIngestionJob",
+      region: props.bedrockRegion,
       parameters: {
-        DataSourceId: sfn.JsonPath.stringAt(
-          "$.IngestionJob.IngestionJob.DataSourceId"
+        dataSourceId: sfn.JsonPath.stringAt(
+          "$.IngestionJob.ingestionJob.dataSourceId"
         ),
-        KnowledgeBaseId: sfn.JsonPath.stringAt(
-          "$.IngestionJob.IngestionJob.KnowledgeBaseId"
+        knowledgeBaseId: sfn.JsonPath.stringAt(
+          "$.IngestionJob.ingestionJob.knowledgeBaseId"
         ),
-        IngestionJobId: sfn.JsonPath.stringAt(
-          "$.IngestionJob.IngestionJob.IngestionJobId"
+        ingestionJobId: sfn.JsonPath.stringAt(
+          "$.IngestionJob.ingestionJob.ingestionJobId"
         ),
       },
       // Ref: https://docs.aws.amazon.com/ja_jp/service-authorization/latest/reference/list_amazonbedrock.html#amazonbedrock-knowledge-base
       iamResources: [
-        `arn:${Stack.of(this).partition}:bedrock:${Stack.of(this).region}:${
+        `arn:${Stack.of(this).partition}:bedrock:${props.bedrockRegion}:${
           Stack.of(this).account
         }:knowledge-base/*`,
       ],
@@ -478,14 +533,14 @@ export class Embedding extends Construct {
     )
       .when(
         sfn.Condition.stringEquals(
-          "$.IngestionJob.IngestionJob.Status",
+          "$.IngestionJob.ingestionJob.status",
           "COMPLETE"
         ),
         new sfn.Pass(this, "IngestionJobCompleted")
       )
       .when(
         sfn.Condition.stringEquals(
-          "$.IngestionJob.IngestionJob.Status",
+          "$.IngestionJob.ingestionJob.status",
           "FAILED"
         ),
         new tasks.LambdaInvoke(this, "UpdateSyncStatusFailedForIngestion", {
@@ -518,9 +573,10 @@ export class Embedding extends Construct {
         sfn.Condition.isPresent("$[0].dynamodb.NewImage.BedrockKnowledgeBase"),
         extractFirstElement
           .next(updateSyncStatusRunning)
-          .next(startKnowledgeBaseBuild)
+          .next(startCustomBotBuild)
           .next(fetchStackOutput)
           .next(storeKnowledgeBaseId)
+          .next(storeGuardrailArn)
           .next(mapIngestionJobs)
           .next(updateSyncStatusSucceeded)
       )
@@ -667,6 +723,7 @@ export class Embedding extends Construct {
       environment: {
         ACCOUNT: Stack.of(this).account,
         REGION: Stack.of(this).region,
+        BEDROCK_REGION: props.bedrockRegion,
         TABLE_NAME: props.database.tableName,
         TABLE_ACCESS_ROLE_ARN: props.tableAccessRole.roleArn,
         DB_SECRETS_ARN: props.dbSecrets.secretArn,

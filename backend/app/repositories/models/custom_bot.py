@@ -1,5 +1,6 @@
 from app.repositories.models.common import Float
 from app.repositories.models.custom_bot_kb import BedrockKnowledgeBaseModel
+from app.repositories.models.custom_bot_guardrails import BedrockGuardrailsModel
 from app.routes.schemas.bot import type_sync_status
 from pydantic import BaseModel
 
@@ -88,6 +89,7 @@ class BotModel(BaseModel):
     display_retrieved_chunks: bool
     conversation_quick_starters: list[ConversationQuickStarterModel]
     bedrock_knowledge_base: BedrockKnowledgeBaseModel | None
+    bedrock_guardrails: BedrockGuardrailsModel | None
 
     def has_knowledge(self) -> bool:
         return (

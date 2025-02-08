@@ -23,6 +23,7 @@ from app.routes.schemas.bot import (
     GenerationParams,
     Knowledge,
     SearchParams,
+    BedrockGuardrailsOutput,
 )
 from app.usecases.bot import (
     create_new_bot,
@@ -178,6 +179,11 @@ def get_private_bot(request: Request, bot_id: str):
         bedrock_knowledge_base=(
             BedrockKnowledgeBaseOutput(**bot.bedrock_knowledge_base.model_dump())
             if bot.bedrock_knowledge_base
+            else None
+        ),
+        bedrock_guardrails=(
+            BedrockGuardrailsOutput(**bot.bedrock_guardrails.model_dump())
+            if bot.bedrock_guardrails
             else None
         ),
     )

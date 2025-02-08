@@ -21,6 +21,19 @@ class SearchResult(BaseModel):
     rank: int
 
 
+def to_guardrails_grounding_source(
+    search_results: list[SearchResult],
+) -> dict:
+    """Convert search results to Guardrails Grounding source format."""
+    grounding_source = {
+        "text": {
+            "text": "\n\n".join(x.content for x in search_results),
+            "qualifiers": ["grounding_source"],
+        }
+    }
+    return grounding_source
+
+
 def filter_used_results(
     generated_text: str, search_results: list[SearchResult]
 ) -> list[SearchResult]:

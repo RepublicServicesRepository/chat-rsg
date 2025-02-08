@@ -36,7 +36,7 @@ export interface ApiProps {
   readonly documentBucket: IBucket;
   readonly largeMessageBucket: IBucket;
   readonly apiPublishProject: codebuild.IProject;
-  readonly bedrockKnowledgeBaseProject: codebuild.IProject;
+  readonly bedrockCustomBotProject: codebuild.IProject;
   readonly usageAnalysis?: UsageAnalysis;
   readonly enableMistral: boolean;
 }
@@ -83,7 +83,7 @@ export class Api extends Construct {
         actions: ["codebuild:StartBuild"],
         resources: [
           props.apiPublishProject.projectArn,
-          props.bedrockKnowledgeBaseProject.projectArn,
+          props.bedrockCustomBotProject.projectArn,
         ],
       })
     );
@@ -106,7 +106,7 @@ export class Api extends Construct {
         actions: ["codebuild:BatchGetBuilds"],
         resources: [
           props.apiPublishProject.projectArn,
-          props.bedrockKnowledgeBaseProject.projectArn,
+          props.bedrockCustomBotProject.projectArn,
         ],
       })
     );
@@ -202,8 +202,8 @@ export class Api extends Construct {
         DOCUMENT_BUCKET: props.documentBucket.bucketName,
         LARGE_MESSAGE_BUCKET: props.largeMessageBucket.bucketName,
         PUBLISH_API_CODEBUILD_PROJECT_NAME: props.apiPublishProject.projectName,
-        KNOWLEDGE_BASE_CODEBUILD_PROJECT_NAME:
-          props.bedrockKnowledgeBaseProject.projectName,
+        // KNOWLEDGE_BASE_CODEBUILD_PROJECT_NAME:
+        //   props.bedrockCustomBotProject.projectName,
         USAGE_ANALYSIS_DATABASE:
           props.usageAnalysis?.database.databaseName || "",
         USAGE_ANALYSIS_TABLE:

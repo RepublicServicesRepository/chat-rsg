@@ -119,3 +119,15 @@ export const PostStreamingStatus = {
   ERROR: 'ERROR',
   END: 'END',
 } as const;
+
+export const GUARDRAILS_FILTERS_THRESHOLD = { 
+  MAX: 3,
+  MIN: 0,
+  STEP: 1,
+}
+
+export const GUARDRAILS_CONTECTUAL_GROUNDING_THRESHOLD = { 
+  MAX: 0.99,
+  MIN: 0,
+  STEP: 0.01,
+}

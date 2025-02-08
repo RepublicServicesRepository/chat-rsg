@@ -26,6 +26,7 @@ def create_test_private_bot(
     include_internet_tool=False,
     set_dummy_knowledge=True,
     bedrock_knowledge_base=None,
+    bedrock_guardrails=None,
 ):
     return BotModel(
         id=id,
@@ -86,6 +87,7 @@ def create_test_private_bot(
         display_retrieved_chunks=True,
         conversation_quick_starters=[],
         bedrock_knowledge_base=bedrock_knowledge_base,
+        bedrock_guardrails=bedrock_guardrails,
     )
 
 
@@ -96,6 +98,7 @@ def create_test_public_bot(
     public_bot_id=None,
     instruction="Test Public Bot Prompt",
     bedrock_knowledge_base=None,
+    bedrock_guardrails=None,
 ):
     return BotModel(
         id=id,
@@ -146,6 +149,7 @@ def create_test_public_bot(
         display_retrieved_chunks=True,
         conversation_quick_starters=[],
         bedrock_knowledge_base=bedrock_knowledge_base,
+        bedrock_guardrails=bedrock_guardrails,
     )
 
 

@@ -2,13 +2,14 @@ import os
 import tempfile
 import logging
 import boto3
-from distutils.util import strtobool
 from embedding.loaders.base import BaseLoader, Document
 from unstructured.partition.auto import partition
 from unstructured.partition.pdf import partition_pdf
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 
 
 class S3FileLoader(BaseLoader):
@@ -30,7 +31,7 @@ class S3FileLoader(BaseLoader):
 
     def _get_elements(self) -> list:
         """Get elements."""
-        s3 = boto3.client("s3")
+        s3 = boto3.client("s3", BEDROCK_REGION)
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = f"{temp_dir}/{self.key}"
             os.makedirs(os.path.dirname(file_path), exist_ok=True)

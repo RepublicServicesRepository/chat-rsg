@@ -474,6 +474,7 @@ class TestConversationBotRepository(unittest.TestCase):
                 ConversationQuickStarterModel(title="QS title", example="QS example")
             ],
             bedrock_knowledge_base=None,
+            bedrock_guardrails=None,
         )
         bot2 = BotModel(
             id="2",
@@ -523,6 +524,7 @@ class TestConversationBotRepository(unittest.TestCase):
                 ConversationQuickStarterModel(title="QS title", example="QS example")
             ],
             bedrock_knowledge_base=None,
+            bedrock_guardrails=None,
         )
 
         store_conversation("user", conversation1)
