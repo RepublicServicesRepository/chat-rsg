@@ -65,7 +65,7 @@ export class BedrockChatStack extends cdk.Stack {
 
     // add for RSG purpose
     const vpc = ec2.Vpc.fromLookup(this, "VPC", {
-      vpcName: 'ai-platfrom-vpc-dev', //TODO: process.env.RSG_VPC_NAME,
+      vpcName: 'ai-platfrom-vpc-prod', //TODO: process.env.RSG_VPC_NAME,
       ownerAccountId: process.env.CDK_DEFAULT_ACCOUNT,
       region: process.env.CDK_DEFAULT_REGION,
     });
