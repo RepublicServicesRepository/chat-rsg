@@ -42,7 +42,7 @@ IPV6_RANGES=""
 DISABLE_IPV6="false"
 ALLOWED_SIGN_UP_EMAIL_DOMAINS=""
 BEDROCK_REGION="us-east-1"
-VERSION="rsg-v1.0.0"
+VERSION="rsg-v1.4.0"
 
 # Parse command-line arguments for customization
 while [[ "$#" -gt 0 ]]; do
