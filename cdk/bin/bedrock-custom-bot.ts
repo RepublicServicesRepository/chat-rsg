@@ -121,7 +121,7 @@ const bedrockCustomBotStack = new BedrockCustomBotStack(
   `BrChatKbStack${botId}`,
   {
     env: {
-      // account: process.env.CDK_DEFAULT_ACCOUNT,
+      account: process.env.CDK_DEFAULT_ACCOUNT,
       region: BEDROCK_REGION,
     },
     ownerUserId,
