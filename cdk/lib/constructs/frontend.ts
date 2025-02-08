@@ -112,8 +112,9 @@ export class Frontend extends Construct {
       const defaultProps = {
         VITE_APP_API_ENDPOINT: backendApiEndpoint,
         VITE_APP_WS_ENDPOINT: webSocketApiEndpoint,
-        VITE_APP_USER_POOL_ID: auth.userPool.userPoolId,
-        VITE_APP_USER_POOL_CLIENT_ID: auth.client.userPoolClientId,
+        //republic. get these from codebuild project env
+        //VITE_APP_USER_POOL_ID: auth.userPool.userPoolId,  
+        //VITE_APP_USER_POOL_CLIENT_ID: auth.client.userPoolClientId,
         VITE_APP_ENABLE_MISTRAL: enableMistral.toString(),
         VITE_APP_REGION: region,
         VITE_APP_USE_STREAMING: "true",
@@ -125,7 +126,7 @@ export class Frontend extends Construct {
         //republic: override the redirect urls in code build project env
         // VITE_APP_REDIRECT_SIGNIN_URL: this.getOrigin(),
         // VITE_APP_REDIRECT_SIGNOUT_URL: this.getOrigin(),
-        VITE_APP_COGNITO_DOMAIN: cognitoDomain,
+        //VITE_APP_COGNITO_DOMAIN: cognitoDomain,
         VITE_APP_SOCIAL_PROVIDERS: idp.getSocialProviders(),
         VITE_APP_CUSTOM_PROVIDER_ENABLED: idp
           .checkCustomProviderEnabled()
