@@ -25,6 +25,9 @@ def ask_sop(
     if topic is None:
         return "Error: Unable to determine the topic"
     
+    if topic == "mpu":
+        input = input + ": Provide list of steps/instructions"
+    
     logger.info(f"User qustion/prompt/input: {input}")
     logger.info(f"Topic: {topic}")
 
@@ -36,13 +39,10 @@ def ask_sop(
     chunks = json.dumps(results, cls=DecimalEncoder)
     chunks_json = json.loads(chunks)
 
-    if topic == "mpu":
-        input = input + ": Provide list of steps/instructions"
-
     return {
         "input": input,
         "chunks": chunks_json
-    }
+    }   
 
 ask_sop_tool = StructuredTool.from_function(
     func=ask_sop,
