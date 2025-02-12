@@ -36,6 +36,9 @@ def ask_sop(
     chunks = json.dumps(results, cls=DecimalEncoder)
     chunks_json = json.loads(chunks)
 
+    if topic == "mpu":
+        input = input + ": Provide list of steps/instructions"
+
     return {
         "input": input,
         "chunks": chunks_json
