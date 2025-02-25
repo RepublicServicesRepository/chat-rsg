@@ -12,6 +12,7 @@ url: https://github.com/RepublicServicesRepository/chat-rsg/tree/chatRSG-v1-QA
 git clone https://github.com/RepublicServicesRepository/chat-rsg/tree/chatRSG-v1-QA
 cd chatRSG-v1-QA
 npm install
+aws sso login to QA (non-prod) or set the AWS access key and scerets for AWS QA env.
 ./bin.sh --bedrock-region us-east-1 --allowed-signup-email-domains "republicservices.com,repsrv.com" --ipv4-ranges "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" --version "1.2.6"
 ````
 

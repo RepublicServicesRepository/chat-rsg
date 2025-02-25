@@ -49,7 +49,7 @@ export class BedrockChatStack extends cdk.Stack {
 
     // const vpc = new ec2.Vpc(this, "VPC", {});
     const vpc = ec2.Vpc.fromLookup(this, "VPC", {
-      vpcName: 'ai-platfrom-vpc-qa',
+      vpcName: 'ai-platfrom-vpc-prod',
       ownerAccountId: process.env.CDK_DEFAULT_ACCOUNT,
       region: process.env.CDK_DEFAULT_REGION,
     });
